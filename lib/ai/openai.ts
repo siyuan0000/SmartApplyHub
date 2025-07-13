@@ -1,4 +1,5 @@
 import { OpenAI } from 'openai'
+import { ResumeContent } from '@/lib/resume/parser'
 
 // Initialize OpenAI client
 const openai = new OpenAI({
@@ -251,6 +252,97 @@ export class OpenAIService {
     } catch (error) {
       console.error('OpenAI keyword suggestions failed:', error)
       throw new Error(`Keyword suggestions failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
+  }
+
+  static async parseResumeStructure(rawText: string): Promise<ResumeContent> {
+    this.validateApiKey()
+
+    try {
+      const prompt = `
+CRITICAL: You are reformatting resume information ONLY. Do NOT enhance, improve, or change any content. 
+Preserve all original information exactly as provided.
+
+BULLET POINT HANDLING:
+- Experience: Use "description" for brief role overview, "achievements" array for bullet points
+- Projects: Use "description" for overview, "details" array for bullet points  
+- Convert all bullet indicators (•, -, *, 1., 2.) into clean array elements
+- Preserve exact wording from original text
+
+Parse this resume text into structured JSON:
+
+${rawText}
+
+Return JSON matching this EXACT structure:
+{
+  "contact": {
+    "name": "exact name from resume",
+    "email": "exact email", 
+    "phone": "formatted phone",
+    "location": "exact location",
+    "linkedin": "exact linkedin url",
+    "github": "exact github url"
+  },
+  "summary": "exact summary text without changes",
+  "experience": [
+    {
+      "title": "exact job title",
+      "company": "exact company name",
+      "location": "exact location if provided", 
+      "startDate": "MM/YYYY format",
+      "endDate": "MM/YYYY or Present",
+      "description": "brief role overview if provided",
+      "achievements": ["exact bullet 1", "exact bullet 2", "exact bullet 3"]
+    }
+  ],
+  "education": [
+    {
+      "degree": "exact degree name",
+      "school": "exact school name", 
+      "graduationDate": "MM/YYYY",
+      "gpa": "exact GPA if provided"
+    }
+  ],
+  "skills": ["exact skill 1", "exact skill 2"],
+  "projects": [
+    {
+      "name": "exact project name",
+      "description": "brief project overview", 
+      "details": ["exact feature 1", "exact accomplishment 2"],
+      "technologies": ["tech1", "tech2"],
+      "url": "exact url if provided"
+    }
+  ],
+  "raw_text": "${rawText}"
+}
+
+Do not enhance content - only restructure existing information.`
+
+      const response = await openai.chat.completions.create({
+        model: 'gpt-4',
+        messages: [
+          { 
+            role: 'system', 
+            content: 'You are a resume parsing specialist. Restructure content without enhancement.' 
+          },
+          { 
+            role: 'user', 
+            content: prompt 
+          }
+        ],
+        max_tokens: 3000,
+        temperature: 0.1  // Low temperature for consistency
+      })
+
+      const content = response.choices[0].message.content
+      if (!content) {
+        throw new Error('No response from OpenAI')
+      }
+
+      return JSON.parse(content)
+    } catch (error) {
+      console.error('OpenAI resume parsing failed:', error)
+      throw new Error(`Resume parsing failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }
 }

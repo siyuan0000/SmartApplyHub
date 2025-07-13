@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { AIAnalysisResult, ATSAnalysisResult, ContentEnhancementResult } from '@/lib/ai/openai'
+import { ResumeContent } from '@/lib/resume/parser'
 
 export interface UseAIReturn {
   // Analysis
@@ -9,12 +10,16 @@ export interface UseAIReturn {
   // Content Enhancement
   enhanceSection: (sectionType: string, content: string, jobDescription?: string) => Promise<ContentEnhancementResult>
   
+  // Resume Parsing
+  parseResumeStructure: (rawText: string) => Promise<ResumeContent>
+  
   // Keyword Suggestions
   getKeywordSuggestions: (resumeId: string, jobDescription: string) => Promise<string[]>
   
   // Loading States
   isAnalyzing: boolean
   isEnhancing: boolean
+  isParsing: boolean
   isGeneratingKeywords: boolean
   
   // Error States
@@ -25,6 +30,7 @@ export interface UseAIReturn {
 export function useAI(): UseAIReturn {
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [isEnhancing, setIsEnhancing] = useState(false)
+  const [isParsing, setIsParsing] = useState(false)
   const [isGeneratingKeywords, setIsGeneratingKeywords] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -40,6 +46,7 @@ export function useAI(): UseAIReturn {
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include', // Include cookies in request
         body: JSON.stringify({ resumeId }),
       })
 
@@ -69,6 +76,7 @@ export function useAI(): UseAIReturn {
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include', // Include cookies in request
         body: JSON.stringify({ resumeId, jobDescription }),
       })
 
@@ -102,6 +110,7 @@ export function useAI(): UseAIReturn {
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include', // Include cookies in request
         body: JSON.stringify({ sectionType, content, jobDescription }),
       })
 
@@ -131,6 +140,7 @@ export function useAI(): UseAIReturn {
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include', // Include cookies in request
         body: JSON.stringify({ resumeId, jobDescription }),
       })
 
@@ -150,13 +160,43 @@ export function useAI(): UseAIReturn {
     }
   }
 
+  const parseResumeStructure = async (rawText: string): Promise<ResumeContent> => {
+    setIsParsing(true)
+    setError(null)
+
+    try {
+      const response = await fetch('/api/ai/parse-resume', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include', // Include cookies in request
+        body: JSON.stringify({ rawText }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to parse resume')
+      }
+
+      const { structuredContent } = await response.json()
+      return structuredContent
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Resume parsing failed'
+      setError(errorMessage)
+      throw err
+    } finally {
+      setIsParsing(false)
+    }
+  }
+
   return {
     analyzeResume,
     analyzeATS,
     enhanceSection,
+    parseResumeStructure,
     getKeywordSuggestions,
     isAnalyzing,
     isEnhancing,
+    isParsing,
     isGeneratingKeywords,
     error,
     clearError,

@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { OpenAIService } from '@/lib/ai/openai'
-import { supabase } from '@/lib/supabase'
-import { cookies } from 'next/headers'
+import { getAuthenticatedUser } from '@/lib/supabase/api'
 
 export async function POST(request: NextRequest) {
   try {
@@ -11,15 +10,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Section type and content are required' }, { status: 400 })
     }
 
-    // Get user from session
-    const cookieStore = await cookies()
-    const supabaseAdmin = supabase
-
-    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(
-      cookieStore.get('sb-access-token')?.value
-    )
-
-    if (authError || !user) {
+    // Authenticate user
+    try {
+      await getAuthenticatedUser(request)
+    } catch {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 

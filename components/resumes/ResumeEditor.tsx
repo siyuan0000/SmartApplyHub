@@ -110,7 +110,7 @@ export function ResumeEditor({ resumeId, onSave }: ResumeEditorProps) {
     })
   }
 
-  const updateExperience = (index: number, field: string, value: string) => {
+  const updateExperience = (index: number, field: string, value: string | string[]) => {
     if (!content) return
     const updatedExperience = [...content.experience]
     updatedExperience[index] = { ...updatedExperience[index], [field]: value }
@@ -156,6 +156,47 @@ export function ResumeEditor({ resumeId, onSave }: ResumeEditorProps) {
     if (!content) return
     const skillsArray = skills.split(',').map(skill => skill.trim()).filter(skill => skill.length > 0)
     setContent({ ...content, skills: skillsArray })
+  }
+
+  // Helper functions for bullet point handling
+  const formatAchievements = (achievements: string[] = []): string => {
+    return achievements.map(a => `• ${a}`).join('\n')
+  }
+
+  const parseAchievements = (text: string): string[] => {
+    return text.split('\n')
+      .map(line => line.replace(/^[•\-\*]\s*/, '').trim())
+      .filter(line => line.length > 0)
+  }
+
+  // Project management functions
+  const addProject = () => {
+    if (!content) return
+    const newProject = {
+      name: '',
+      description: '',
+      details: [],
+      technologies: []
+    }
+    setContent({
+      ...content,
+      projects: [...(content.projects || []), newProject]
+    })
+  }
+
+  const updateProject = (index: number, field: string, value: string | string[]) => {
+    if (!content) return
+    const updatedProjects = [...(content.projects || [])]
+    updatedProjects[index] = { ...updatedProjects[index], [field]: value }
+    setContent({ ...content, projects: updatedProjects })
+  }
+
+  const removeProject = (index: number) => {
+    if (!content) return
+    setContent({
+      ...content,
+      projects: (content.projects || []).filter((_, i) => i !== index)
+    })
   }
 
   if (loading) {
@@ -403,12 +444,20 @@ export function ResumeEditor({ resumeId, onSave }: ResumeEditorProps) {
                     </div>
                   </div>
                   <div>
-                    <Label>Description & Achievements</Label>
-                    <Textarea
+                    <Label>Role Description</Label>
+                    <Input
                       value={exp.description || ''}
                       onChange={(e) => updateExperience(index, 'description', e.target.value)}
-                      placeholder="Describe your role, responsibilities, and key achievements..."
-                      className="min-h-24"
+                      placeholder="Brief overview of your role"
+                    />
+                  </div>
+                  <div>
+                    <Label>Key Achievements</Label>
+                    <Textarea
+                      value={formatAchievements(exp.achievements)}
+                      onChange={(e) => updateExperience(index, 'achievements', parseAchievements(e.target.value))}
+                      placeholder="• Achievement 1&#10;• Achievement 2&#10;• Achievement 3"
+                      className="min-h-32"
                     />
                   </div>
                 </div>
@@ -517,16 +566,78 @@ export function ResumeEditor({ resumeId, onSave }: ResumeEditorProps) {
               <CardTitle className="flex items-center gap-2">
                 <span>🚀</span>
                 Projects
-                <Button size="sm" className="ml-auto gap-1">
+                <Button size="sm" onClick={addProject} className="ml-auto gap-1">
                   <Plus className="h-3 w-3" />
                   Add Project
                 </Button>
               </CardTitle>
             </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground text-center py-8">
-                Projects section coming soon...
-              </p>
+            <CardContent className="space-y-6">
+              {(content.projects || []).map((project, index) => (
+                <div key={index} className="border rounded-lg p-4 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-medium">Project {index + 1}</h4>
+                    <div className="flex gap-2">
+                      <Button size="sm" variant="outline" className="gap-1">
+                        <Sparkles className="h-3 w-3" />
+                        AI Enhance
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => removeProject(index)}>
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label>Project Name</Label>
+                      <Input
+                        value={project.name}
+                        onChange={(e) => updateProject(index, 'name', e.target.value)}
+                        placeholder="Project Name"
+                      />
+                    </div>
+                    <div>
+                      <Label>Project URL</Label>
+                      <Input
+                        value={project.url || ''}
+                        onChange={(e) => updateProject(index, 'url', e.target.value)}
+                        placeholder="https://github.com/username/project"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <Label>Project Overview</Label>
+                    <Input
+                      value={project.description}
+                      onChange={(e) => updateProject(index, 'description', e.target.value)}
+                      placeholder="Brief project description"
+                    />
+                  </div>
+                  <div>
+                    <Label>Key Features/Accomplishments</Label>
+                    <Textarea
+                      value={formatAchievements(project.details)}
+                      onChange={(e) => updateProject(index, 'details', parseAchievements(e.target.value))}
+                      placeholder="• Feature 1&#10;• Feature 2&#10;• Accomplishment 3"
+                      className="min-h-24"
+                    />
+                  </div>
+                  <div>
+                    <Label>Technologies Used</Label>
+                    <Input
+                      value={project.technologies?.join(', ') || ''}
+                      onChange={(e) => updateProject(index, 'technologies', e.target.value.split(',').map(t => t.trim()).filter(t => t.length > 0))}
+                      placeholder="React, Node.js, PostgreSQL"
+                    />
+                  </div>
+                </div>
+              ))}
+              {(content.projects || []).length === 0 && (
+                <div className="text-center py-8">
+                  <p className="text-muted-foreground">No projects added yet.</p>
+                  <p className="text-sm text-muted-foreground">Click &quot;Add Project&quot; to get started.</p>
+                </div>
+              )}
             </CardContent>
           </Card>
         )}

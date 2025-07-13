@@ -7,10 +7,11 @@ import { Progress } from '@/components/ui/progress'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { ResumeUpload } from './ResumeUpload'
 import { OCRProcessor } from '@/lib/ocr/processor'
-import { ResumeParser, ResumeContent } from '@/lib/resume/parser'
+import { ResumeContent } from '@/lib/resume/parser'
 import { ResumeService } from '@/lib/resume/service'
 import { ensureUserExists } from '@/lib/supabase/user'
 import { useAuth } from '@/hooks/useAuth'
+import { useAI } from '@/hooks/useAI'
 import { FileText, Loader2, CheckCircle, AlertCircle } from 'lucide-react'
 
 interface ProcessingStep {
@@ -31,11 +32,13 @@ export function ResumeProcessor({ onProcessingComplete }: ResumeProcessorProps) 
   const [steps, setSteps] = useState<ProcessingStep[]>([
     { id: 'upload', title: 'Upload Resume', status: 'pending', progress: 0 },
     { id: 'ocr', title: 'Extract Text', status: 'pending', progress: 0 },
-    { id: 'parse', title: 'Parse Content', status: 'pending', progress: 0 },
+    { id: 'ai-parse', title: 'AI Structure Analysis', status: 'pending', progress: 0 },
+    { id: 'validate', title: 'Validate Content', status: 'pending', progress: 0 },
     { id: 'save', title: 'Save Resume', status: 'pending', progress: 0 }
   ])
 
   const { user } = useAuth()
+  const { parseResumeStructure } = useAI()
 
   const updateStep = (stepId: string, status: ProcessingStep['status'], progress: number = 0) => {
     setSteps(prev => prev.map(step => 
@@ -72,13 +75,21 @@ export function ResumeProcessor({ onProcessingComplete }: ResumeProcessorProps) 
       const ocrResult = await OCRProcessor.processFile(file)
       updateStep('ocr', 'completed', 100)
 
-      // Step 2: Parse Content
-      updateStep('parse', 'processing', 0)
-      const parsedContent = ResumeParser.parseResumeText(ocrResult.text)
-      setExtractedContent(parsedContent)
-      updateStep('parse', 'completed', 100)
+      // Step 2: AI Structure Analysis
+      updateStep('ai-parse', 'processing', 0)
+      const parsedContent = await parseResumeStructure(ocrResult.text)
+      updateStep('ai-parse', 'completed', 100)
 
-      // Step 3: Save to Database
+      // Step 3: Validate Content
+      updateStep('validate', 'processing', 0)
+      // Basic validation - ensure required fields exist
+      if (!parsedContent.contact || !parsedContent.experience) {
+        throw new Error('Failed to extract essential resume sections')
+      }
+      setExtractedContent(parsedContent)
+      updateStep('validate', 'completed', 100)
+
+      // Step 4: Save to Database
       updateStep('save', 'processing', 0)
       const resumeTitle = parsedContent.contact.name 
         ? `${parsedContent.contact.name}'s Resume`
@@ -155,7 +166,8 @@ export function ResumeProcessor({ onProcessingComplete }: ResumeProcessorProps) 
     setSteps([
       { id: 'upload', title: 'Upload Resume', status: 'pending', progress: 0 },
       { id: 'ocr', title: 'Extract Text', status: 'pending', progress: 0 },
-      { id: 'parse', title: 'Parse Content', status: 'pending', progress: 0 },
+      { id: 'ai-parse', title: 'AI Structure Analysis', status: 'pending', progress: 0 },
+      { id: 'validate', title: 'Validate Content', status: 'pending', progress: 0 },
       { id: 'save', title: 'Save Resume', status: 'pending', progress: 0 }
     ])
   }

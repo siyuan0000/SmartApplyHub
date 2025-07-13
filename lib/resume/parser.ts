@@ -31,6 +31,7 @@ export interface ResumeEducation {
 export interface ResumeProject {
   name: string
   description: string
+  details?: string[]  // Array for bullet points (features/accomplishments)
   technologies?: string[]
   url?: string
   startDate?: string
