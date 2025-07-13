@@ -1,0 +1,537 @@
+'use client'
+
+import { useState, useEffect, useCallback } from 'react'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
+import { Badge } from '@/components/ui/badge'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { ResumeContent, ResumeExperience, ResumeEducation } from '@/lib/resume/parser'
+import { ResumeService } from '@/lib/resume/service'
+import { useAI } from '@/hooks/useAI'
+import { Save, Plus, Trash2, Sparkles, AlertCircle } from 'lucide-react'
+
+interface ResumeEditorProps {
+  resumeId: string
+  onSave?: (content: ResumeContent) => void
+}
+
+export function ResumeEditor({ resumeId, onSave }: ResumeEditorProps) {
+  const [content, setContent] = useState<ResumeContent | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [activeSection, setActiveSection] = useState<string>('contact')
+  const { enhanceSection, isEnhancing, error: aiError, clearError } = useAI()
+
+  const handleEnhanceSection = async (sectionType: string, currentContent: string) => {
+    try {
+      clearError()
+      const result = await enhanceSection(sectionType, currentContent)
+      
+      if (content) {
+        // Update the specific section with enhanced content
+        const updatedContent = { ...content }
+        
+        switch (sectionType) {
+          case 'summary':
+            updatedContent.summary = result.enhancedText
+            break
+          case 'contact':
+            // For contact, we might enhance the summary/headline
+            break
+          default:
+            console.warn(`Enhancement not implemented for section: ${sectionType}`)
+        }
+        
+        setContent(updatedContent)
+        await saveResume()
+      }
+    } catch (error) {
+      console.error('Failed to enhance section:', error)
+    }
+  }
+
+  const loadResume = useCallback(async () => {
+    try {
+      const resume = await ResumeService.getResume(resumeId)
+      if (resume) {
+        setContent(ResumeService.parseResumeContent(resume))
+      }
+    } catch (error) {
+      console.error('Failed to load resume:', error)
+    } finally {
+      setLoading(false)
+    }
+  }, [resumeId])
+
+  useEffect(() => {
+    loadResume()
+  }, [loadResume])
+
+  const saveResume = async () => {
+    if (!content) return
+
+    setSaving(true)
+    try {
+      await ResumeService.updateResume(resumeId, { content })
+      onSave?.(content)
+    } catch (error) {
+      console.error('Failed to save resume:', error)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const updateContact = (field: string, value: string) => {
+    if (!content) return
+    setContent({
+      ...content,
+      contact: { ...content.contact, [field]: value }
+    })
+  }
+
+  const updateSummary = (summary: string) => {
+    if (!content) return
+    setContent({ ...content, summary })
+  }
+
+  const addExperience = () => {
+    if (!content) return
+    const newExperience: ResumeExperience = {
+      title: '',
+      company: '',
+      description: ''
+    }
+    setContent({
+      ...content,
+      experience: [...content.experience, newExperience]
+    })
+  }
+
+  const updateExperience = (index: number, field: string, value: string) => {
+    if (!content) return
+    const updatedExperience = [...content.experience]
+    updatedExperience[index] = { ...updatedExperience[index], [field]: value }
+    setContent({ ...content, experience: updatedExperience })
+  }
+
+  const removeExperience = (index: number) => {
+    if (!content) return
+    setContent({
+      ...content,
+      experience: content.experience.filter((_, i) => i !== index)
+    })
+  }
+
+  const addEducation = () => {
+    if (!content) return
+    const newEducation: ResumeEducation = {
+      degree: '',
+      school: ''
+    }
+    setContent({
+      ...content,
+      education: [...content.education, newEducation]
+    })
+  }
+
+  const updateEducation = (index: number, field: string, value: string) => {
+    if (!content) return
+    const updatedEducation = [...content.education]
+    updatedEducation[index] = { ...updatedEducation[index], [field]: value }
+    setContent({ ...content, education: updatedEducation })
+  }
+
+  const removeEducation = (index: number) => {
+    if (!content) return
+    setContent({
+      ...content,
+      education: content.education.filter((_, i) => i !== index)
+    })
+  }
+
+  const updateSkills = (skills: string) => {
+    if (!content) return
+    const skillsArray = skills.split(',').map(skill => skill.trim()).filter(skill => skill.length > 0)
+    setContent({ ...content, skills: skillsArray })
+  }
+
+  if (loading) {
+    return (
+      <div className="text-center py-12">
+        <p className="text-muted-foreground">Loading resume...</p>
+      </div>
+    )
+  }
+
+  if (!content) {
+    return (
+      <div className="text-center py-12">
+        <p className="text-muted-foreground">Resume not found</p>
+      </div>
+    )
+  }
+
+  const sections = [
+    { id: 'contact', label: 'Contact Info', icon: '👤' },
+    { id: 'summary', label: 'Summary', icon: '📝' },
+    { id: 'experience', label: 'Experience', icon: '💼' },
+    { id: 'education', label: 'Education', icon: '🎓' },
+    { id: 'skills', label: 'Skills', icon: '🔧' },
+    { id: 'projects', label: 'Projects', icon: '🚀' }
+  ]
+
+  return (
+    <div className="space-y-4">
+      {aiError && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            AI Enhancement Error: {aiError}
+            <button onClick={clearError} className="ml-2 text-sm underline">
+              Dismiss
+            </button>
+          </AlertDescription>
+        </Alert>
+      )}
+      
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+      {/* Section Navigation */}
+      <div className="lg:col-span-1">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Sections</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {sections.map((section) => (
+              <Button
+                key={section.id}
+                variant={activeSection === section.id ? 'default' : 'ghost'}
+                className="w-full justify-start gap-2"
+                onClick={() => setActiveSection(section.id)}
+              >
+                <span>{section.icon}</span>
+                {section.label}
+              </Button>
+            ))}
+            <div className="pt-4 border-t">
+              <Button
+                onClick={saveResume}
+                disabled={saving}
+                className="w-full gap-2"
+              >
+                <Save className="h-4 w-4" />
+                {saving ? 'Saving...' : 'Save Resume'}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Section Editor */}
+      <div className="lg:col-span-3">
+        {activeSection === 'contact' && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <span>👤</span>
+                Contact Information
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  className="ml-auto gap-1"
+                  onClick={() => handleEnhanceSection('contact', `${content?.contact.name || ''} ${content?.contact.email || ''}`)}
+                  disabled={isEnhancing}
+                >
+                  <Sparkles className="h-3 w-3" />
+                  {isEnhancing ? 'Enhancing...' : 'AI Enhance'}
+                </Button>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="name">Full Name</Label>
+                  <Input
+                    id="name"
+                    value={content.contact.name || ''}
+                    onChange={(e) => updateContact('name', e.target.value)}
+                    placeholder="Enter your full name"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="email">Email</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={content.contact.email || ''}
+                    onChange={(e) => updateContact('email', e.target.value)}
+                    placeholder="your.email@example.com"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="phone">Phone</Label>
+                  <Input
+                    id="phone"
+                    value={content.contact.phone || ''}
+                    onChange={(e) => updateContact('phone', e.target.value)}
+                    placeholder="+1 (555) 123-4567"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="location">Location</Label>
+                  <Input
+                    id="location"
+                    value={content.contact.location || ''}
+                    onChange={(e) => updateContact('location', e.target.value)}
+                    placeholder="City, State"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="linkedin">LinkedIn</Label>
+                  <Input
+                    id="linkedin"
+                    value={content.contact.linkedin || ''}
+                    onChange={(e) => updateContact('linkedin', e.target.value)}
+                    placeholder="linkedin.com/in/yourprofile"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="github">GitHub</Label>
+                  <Input
+                    id="github"
+                    value={content.contact.github || ''}
+                    onChange={(e) => updateContact('github', e.target.value)}
+                    placeholder="github.com/yourusername"
+                  />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {activeSection === 'summary' && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <span>📝</span>
+                Professional Summary
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  className="ml-auto gap-1"
+                  onClick={() => handleEnhanceSection('summary', content?.summary || '')}
+                  disabled={isEnhancing}
+                >
+                  <Sparkles className="h-3 w-3" />
+                  {isEnhancing ? 'Enhancing...' : 'AI Enhance'}
+                </Button>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Textarea
+                value={content.summary || ''}
+                onChange={(e) => updateSummary(e.target.value)}
+                placeholder="Write a compelling professional summary that highlights your key achievements and career goals..."
+                className="min-h-32"
+              />
+            </CardContent>
+          </Card>
+        )}
+
+        {activeSection === 'experience' && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <span>💼</span>
+                Work Experience
+                <Button size="sm" onClick={addExperience} className="ml-auto gap-1">
+                  <Plus className="h-3 w-3" />
+                  Add Experience
+                </Button>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {content.experience.map((exp, index) => (
+                <div key={index} className="border rounded-lg p-4 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-medium">Experience {index + 1}</h4>
+                    <div className="flex gap-2">
+                      <Button size="sm" variant="outline" className="gap-1">
+                        <Sparkles className="h-3 w-3" />
+                        AI Enhance
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => removeExperience(index)}>
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label>Job Title</Label>
+                      <Input
+                        value={exp.title}
+                        onChange={(e) => updateExperience(index, 'title', e.target.value)}
+                        placeholder="Software Engineer"
+                      />
+                    </div>
+                    <div>
+                      <Label>Company</Label>
+                      <Input
+                        value={exp.company}
+                        onChange={(e) => updateExperience(index, 'company', e.target.value)}
+                        placeholder="Tech Company Inc."
+                      />
+                    </div>
+                    <div>
+                      <Label>Start Date</Label>
+                      <Input
+                        value={exp.startDate || ''}
+                        onChange={(e) => updateExperience(index, 'startDate', e.target.value)}
+                        placeholder="Jan 2020"
+                      />
+                    </div>
+                    <div>
+                      <Label>End Date</Label>
+                      <Input
+                        value={exp.endDate || ''}
+                        onChange={(e) => updateExperience(index, 'endDate', e.target.value)}
+                        placeholder="Present"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <Label>Description & Achievements</Label>
+                    <Textarea
+                      value={exp.description || ''}
+                      onChange={(e) => updateExperience(index, 'description', e.target.value)}
+                      placeholder="Describe your role, responsibilities, and key achievements..."
+                      className="min-h-24"
+                    />
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        )}
+
+        {activeSection === 'education' && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <span>🎓</span>
+                Education
+                <Button size="sm" onClick={addEducation} className="ml-auto gap-1">
+                  <Plus className="h-3 w-3" />
+                  Add Education
+                </Button>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {content.education.map((edu, index) => (
+                <div key={index} className="border rounded-lg p-4 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-medium">Education {index + 1}</h4>
+                    <Button size="sm" variant="outline" onClick={() => removeEducation(index)}>
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label>Degree</Label>
+                      <Input
+                        value={edu.degree}
+                        onChange={(e) => updateEducation(index, 'degree', e.target.value)}
+                        placeholder="Bachelor of Science in Computer Science"
+                      />
+                    </div>
+                    <div>
+                      <Label>School</Label>
+                      <Input
+                        value={edu.school}
+                        onChange={(e) => updateEducation(index, 'school', e.target.value)}
+                        placeholder="University Name"
+                      />
+                    </div>
+                    <div>
+                      <Label>Graduation Year</Label>
+                      <Input
+                        value={edu.graduationDate || ''}
+                        onChange={(e) => updateEducation(index, 'graduationDate', e.target.value)}
+                        placeholder="2020"
+                      />
+                    </div>
+                    <div>
+                      <Label>GPA (Optional)</Label>
+                      <Input
+                        value={edu.gpa || ''}
+                        onChange={(e) => updateEducation(index, 'gpa', e.target.value)}
+                        placeholder="3.8"
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        )}
+
+        {activeSection === 'skills' && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <span>🔧</span>
+                Skills
+                <Button size="sm" variant="outline" className="ml-auto gap-1">
+                  <Sparkles className="h-3 w-3" />
+                  AI Enhance
+                </Button>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <Label>Skills (comma-separated)</Label>
+                <Textarea
+                  value={content.skills.join(', ')}
+                  onChange={(e) => updateSkills(e.target.value)}
+                  placeholder="JavaScript, React, Node.js, Python, SQL, Git..."
+                  className="min-h-24"
+                />
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {content.skills.map((skill, index) => (
+                  <Badge key={index} variant="secondary">
+                    {skill}
+                  </Badge>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {activeSection === 'projects' && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <span>🚀</span>
+                Projects
+                <Button size="sm" className="ml-auto gap-1">
+                  <Plus className="h-3 w-3" />
+                  Add Project
+                </Button>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-muted-foreground text-center py-8">
+                Projects section coming soon...
+              </p>
+            </CardContent>
+          </Card>
+        )}
+      </div>
+    </div>
+    </div>
+  )
+}

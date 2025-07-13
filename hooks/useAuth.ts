@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/store/auth'
+import { ensureUserExists } from '@/lib/supabase/user'
 
 export const useAuth = () => {
   const { user, loading, setUser, setLoading } = useAuthStore()
@@ -20,7 +21,18 @@ export const useAuth = () => {
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        setUser(session?.user ?? null)
+        const user = session?.user ?? null
+        setUser(user)
+        
+        // Ensure user profile exists when signing in
+        if (event === 'SIGNED_IN' && user) {
+          try {
+            await ensureUserExists(user)
+          } catch (error) {
+            console.error('Failed to ensure user profile exists:', error)
+          }
+        }
+        
         setLoading(false)
         
         if (event === 'SIGNED_OUT') {
