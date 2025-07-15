@@ -134,9 +134,9 @@ export function ResumeEditor({ resumeId, onSave }: ResumeEditorProps) {
         </Alert>
       )}
       
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 xl:grid-cols-4 gap-4">
       {/* Section Navigation */}
-      <div className="lg:col-span-1">
+      <div className="xl:col-span-1">
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">Sections</CardTitle>
@@ -168,7 +168,7 @@ export function ResumeEditor({ resumeId, onSave }: ResumeEditorProps) {
       </div>
 
       {/* Section Editor */}
-      <div className="lg:col-span-3">
+      <div className="xl:col-span-3">
         {activeSection === 'contact' && (
           <Card>
             <CardHeader>
@@ -188,7 +188,7 @@ export function ResumeEditor({ resumeId, onSave }: ResumeEditorProps) {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4">
                 <div>
                   <Label htmlFor="name">Full Name</Label>
                   <Input
@@ -305,7 +305,7 @@ export function ResumeEditor({ resumeId, onSave }: ResumeEditorProps) {
                       </Button>
                     </div>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 gap-4">
                     <div>
                       <Label>Job Title</Label>
                       <Input
@@ -383,7 +383,7 @@ export function ResumeEditor({ resumeId, onSave }: ResumeEditorProps) {
                       <Trash2 className="h-3 w-3" />
                     </Button>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 gap-4">
                     <div>
                       <Label>Degree</Label>
                       <Input
@@ -483,7 +483,7 @@ export function ResumeEditor({ resumeId, onSave }: ResumeEditorProps) {
                       </Button>
                     </div>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 gap-4">
                     <div>
                       <Label>Project Name</Label>
                       <Input

@@ -44,9 +44,9 @@ export function ResumePreview({ resumeId }: ResumePreviewProps) {
 
   return (
     <div className="resume-preview bg-white">
-      <div className="max-w-4xl mx-auto">
+      <div className="w-full">
         {/* Print-friendly container */}
-        <div className="bg-white shadow-lg min-h-[11in] p-8 print:p-6 print:shadow-none print:min-h-0">
+        <div className="bg-white shadow-sm min-h-full p-4 print:p-6 print:shadow-none print:min-h-0">
           <PreviewHeader contact={content.contact} />
           <PreviewSummary summary={content.summary} />
           <PreviewExperience experience={content.experience} />
@@ -61,7 +61,8 @@ export function ResumePreview({ resumeId }: ResumePreviewProps) {
         /* General resume styling improvements */
         .resume-preview {
           font-family: 'Georgia', 'Times New Roman', serif;
-          line-height: 1.5;
+          line-height: 1.4;
+          font-size: 0.9rem;
         }
         
         .resume-preview h1 {
@@ -80,12 +81,12 @@ export function ResumePreview({ resumeId }: ResumePreviewProps) {
         
         /* Professional spacing */
         .resume-preview section {
-          margin-bottom: 1.75rem;
+          margin-bottom: 1.25rem;
         }
         
         .resume-preview .border-l-2 {
-          padding-left: 1rem;
-          margin-bottom: 1.25rem;
+          padding-left: 0.75rem;
+          margin-bottom: 1rem;
         }
         
         /* Enhanced typography */
@@ -131,7 +132,7 @@ export function ResumePreview({ resumeId }: ResumePreviewProps) {
             line-height: 1.4 !important;
           }
           
-          .max-w-4xl {
+          .w-full {
             max-width: none !important;
             margin: 0 !important;
           }

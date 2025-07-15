@@ -13,7 +13,6 @@ import Link from 'next/link'
 export default function ResumePage() {
   const params = useParams()
   const resumeId = params.id as string
-  const [mode, setMode] = useState<'edit' | 'preview'>('edit')
   const { saving, saveResume } = useResumeEditor()
   const { isDirty } = useResumeEditorComputed()
 
@@ -59,20 +58,7 @@ export default function ResumePage() {
   }
 
   const handlePrint = () => {
-    // If in edit mode, temporarily switch to preview for printing
-    const wasInEditMode = mode === 'edit'
-    if (wasInEditMode) {
-      setMode('preview')
-    }
-    
-    // Small delay to ensure the DOM updates before printing
-    setTimeout(() => {
-      window.print()
-      // Switch back to edit mode if user was in edit mode
-      if (wasInEditMode) {
-        setMode('edit')
-      }
-    }, 100)
+    window.print()
   }
 
 
@@ -123,22 +109,6 @@ export default function ResumePage() {
             </div>
           </div>
           <div className="flex gap-2">
-            <Button
-              variant={mode === 'edit' ? 'default' : 'outline'}
-              onClick={() => setMode('edit')}
-              className="gap-2"
-            >
-              <Edit className="h-4 w-4" />
-              Edit
-            </Button>
-            <Button
-              variant={mode === 'preview' ? 'default' : 'outline'}
-              onClick={() => setMode('preview')}
-              className="gap-2"
-            >
-              <Eye className="h-4 w-4" />
-              Preview
-            </Button>
             <Button 
               variant="outline" 
               className="gap-2"
@@ -150,12 +120,71 @@ export default function ResumePage() {
           </div>
         </div>
 
-        {/* Content */}
-        {mode === 'edit' ? (
-          <ResumeEditor resumeId={resumeId} />
-        ) : (
-          <ResumePreview resumeId={resumeId} />
-        )}
+        {/* Split View Content */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-[calc(100vh-12rem)]">
+          {/* Editor Panel */}
+          <div className="bg-background border rounded-lg overflow-hidden flex flex-col">
+            <div className="border-b bg-muted/50 px-4 py-2 flex-shrink-0">
+              <h3 className="font-medium flex items-center gap-2">
+                <Edit className="h-4 w-4" />
+                Editor
+              </h3>
+            </div>
+            <div className="overflow-y-auto flex-1 p-4">
+              <ResumeEditor resumeId={resumeId} />
+            </div>
+          </div>
+
+          {/* Preview Panel */}
+          <div className="bg-background border rounded-lg overflow-hidden flex flex-col">
+            <div className="border-b bg-muted/50 px-4 py-2 flex-shrink-0">
+              <h3 className="font-medium flex items-center gap-2">
+                <Eye className="h-4 w-4" />
+                Preview
+              </h3>
+            </div>
+            <div className="overflow-y-auto flex-1">
+              <ResumePreview resumeId={resumeId} />
+            </div>
+          </div>
+        </div>
+
+        {/* Mobile Stack View */}
+        <style jsx>{`
+          @media (max-width: 1023px) {
+            .grid.lg\\:grid-cols-2 {
+              grid-template-columns: 1fr !important;
+              height: auto !important;
+            }
+            
+            .grid.lg\\:grid-cols-2 > div {
+              height: 50vh !important;
+            }
+          }
+          
+          @media print {
+            /* Hide everything except preview for printing */
+            .grid.lg\\:grid-cols-2 {
+              display: block !important;
+            }
+            
+            .grid.lg\\:grid-cols-2 > div:first-child {
+              display: none !important;
+            }
+            
+            .grid.lg\\:grid-cols-2 > div:last-child {
+              display: block !important;
+              overflow: visible !important;
+              height: auto !important;
+              border: none !important;
+              background: white !important;
+            }
+            
+            .grid.lg\\:grid-cols-2 > div:last-child > div:first-child {
+              display: none !important;
+            }
+          }
+        `}</style>
       </div>
     </AppLayout>
   )
