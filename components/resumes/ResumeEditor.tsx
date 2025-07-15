@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -8,8 +8,8 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { ResumeContent, ResumeExperience, ResumeEducation } from '@/lib/resume/parser'
-import { ResumeService } from '@/lib/resume/service'
+import { ResumeContent } from '@/lib/resume/parser'
+import { useResumeEditor, formatAchievements, parseAchievements } from '@/hooks/useResumeEditor'
 import { useAI } from '@/hooks/useAI'
 import { Save, Plus, Trash2, Sparkles, AlertCircle } from 'lucide-react'
 
@@ -19,24 +19,41 @@ interface ResumeEditorProps {
 }
 
 export function ResumeEditor({ resumeId, onSave }: ResumeEditorProps) {
-  const [content, setContent] = useState<ResumeContent | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
+  const { 
+    content, 
+    loading, 
+    saving, 
+    error,
+    loadResume, 
+    saveResume, 
+    clearError,
+    updateContact,
+    updateSummary,
+    addExperience,
+    updateExperience,
+    removeExperience,
+    addEducation,
+    updateEducation,
+    removeEducation,
+    updateSkills,
+    addProject,
+    updateProject,
+    removeProject
+  } = useResumeEditor()
+  
   const [activeSection, setActiveSection] = useState<string>('contact')
-  const { enhanceSection, isEnhancing, error: aiError, clearError } = useAI()
+  const { enhanceSection, isEnhancing, error: aiError, clearError: clearAIError } = useAI()
 
   const handleEnhanceSection = async (sectionType: string, currentContent: string) => {
     try {
-      clearError()
+      clearAIError()
       const result = await enhanceSection(sectionType, currentContent)
       
       if (content) {
         // Update the specific section with enhanced content
-        const updatedContent = { ...content }
-        
         switch (sectionType) {
           case 'summary':
-            updatedContent.summary = result.enhancedText
+            updateSummary(result.enhancedText)
             break
           case 'contact':
             // For contact, we might enhance the summary/headline
@@ -45,159 +62,27 @@ export function ResumeEditor({ resumeId, onSave }: ResumeEditorProps) {
             console.warn(`Enhancement not implemented for section: ${sectionType}`)
         }
         
-        setContent(updatedContent)
-        await saveResume()
+        // Auto-save after AI enhancement
+        await handleSave()
       }
     } catch (error) {
       console.error('Failed to enhance section:', error)
     }
   }
 
-  const loadResume = useCallback(async () => {
-    try {
-      const resume = await ResumeService.getResume(resumeId)
-      if (resume) {
-        setContent(ResumeService.parseResumeContent(resume))
-      }
-    } catch (error) {
-      console.error('Failed to load resume:', error)
-    } finally {
-      setLoading(false)
-    }
-  }, [resumeId])
-
   useEffect(() => {
-    loadResume()
-  }, [loadResume])
+    if (resumeId) {
+      loadResume(resumeId)
+    }
+  }, [resumeId, loadResume])
 
-  const saveResume = async () => {
-    if (!content) return
-
-    setSaving(true)
-    try {
-      await ResumeService.updateResume(resumeId, { content })
+  const handleSave = async () => {
+    await saveResume()
+    if (content) {
       onSave?.(content)
-    } catch (error) {
-      console.error('Failed to save resume:', error)
-    } finally {
-      setSaving(false)
     }
   }
 
-  const updateContact = (field: string, value: string) => {
-    if (!content) return
-    setContent({
-      ...content,
-      contact: { ...content.contact, [field]: value }
-    })
-  }
-
-  const updateSummary = (summary: string) => {
-    if (!content) return
-    setContent({ ...content, summary })
-  }
-
-  const addExperience = () => {
-    if (!content) return
-    const newExperience: ResumeExperience = {
-      title: '',
-      company: '',
-      description: ''
-    }
-    setContent({
-      ...content,
-      experience: [...content.experience, newExperience]
-    })
-  }
-
-  const updateExperience = (index: number, field: string, value: string | string[]) => {
-    if (!content) return
-    const updatedExperience = [...content.experience]
-    updatedExperience[index] = { ...updatedExperience[index], [field]: value }
-    setContent({ ...content, experience: updatedExperience })
-  }
-
-  const removeExperience = (index: number) => {
-    if (!content) return
-    setContent({
-      ...content,
-      experience: content.experience.filter((_, i) => i !== index)
-    })
-  }
-
-  const addEducation = () => {
-    if (!content) return
-    const newEducation: ResumeEducation = {
-      degree: '',
-      school: ''
-    }
-    setContent({
-      ...content,
-      education: [...content.education, newEducation]
-    })
-  }
-
-  const updateEducation = (index: number, field: string, value: string) => {
-    if (!content) return
-    const updatedEducation = [...content.education]
-    updatedEducation[index] = { ...updatedEducation[index], [field]: value }
-    setContent({ ...content, education: updatedEducation })
-  }
-
-  const removeEducation = (index: number) => {
-    if (!content) return
-    setContent({
-      ...content,
-      education: content.education.filter((_, i) => i !== index)
-    })
-  }
-
-  const updateSkills = (skills: string) => {
-    if (!content) return
-    const skillsArray = skills.split(',').map(skill => skill.trim()).filter(skill => skill.length > 0)
-    setContent({ ...content, skills: skillsArray })
-  }
-
-  // Helper functions for bullet point handling
-  const formatAchievements = (achievements: string[] = []): string => {
-    return achievements.map(a => `• ${a}`).join('\n')
-  }
-
-  const parseAchievements = (text: string): string[] => {
-    return text.split('\n')
-      .map(line => line.replace(/^[•\-\*]\s*/, '').trim())
-      .filter(line => line.length > 0)
-  }
-
-  // Project management functions
-  const addProject = () => {
-    if (!content) return
-    const newProject = {
-      name: '',
-      description: '',
-      details: [],
-      technologies: []
-    }
-    setContent({
-      ...content,
-      projects: [...(content.projects || []), newProject]
-    })
-  }
-
-  const updateProject = (index: number, field: string, value: string | string[]) => {
-    if (!content) return
-    const updatedProjects = [...(content.projects || [])]
-    updatedProjects[index] = { ...updatedProjects[index], [field]: value }
-    setContent({ ...content, projects: updatedProjects })
-  }
-
-  const removeProject = (index: number) => {
-    if (!content) return
-    setContent({
-      ...content,
-      projects: (content.projects || []).filter((_, i) => i !== index)
-    })
-  }
 
   if (loading) {
     return (
@@ -231,6 +116,17 @@ export function ResumeEditor({ resumeId, onSave }: ResumeEditorProps) {
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>
             AI Enhancement Error: {aiError}
+            <button onClick={clearAIError} className="ml-2 text-sm underline">
+              Dismiss
+            </button>
+          </AlertDescription>
+        </Alert>
+      )}
+      {error && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            {error}
             <button onClick={clearError} className="ml-2 text-sm underline">
               Dismiss
             </button>
@@ -259,7 +155,7 @@ export function ResumeEditor({ resumeId, onSave }: ResumeEditorProps) {
             ))}
             <div className="pt-4 border-t">
               <Button
-                onClick={saveResume}
+                onClick={handleSave}
                 disabled={saving}
                 className="w-full gap-2"
               >

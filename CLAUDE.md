@@ -27,10 +27,10 @@ NEXT_PUBLIC_APP_URL=http://localhost:3000
 ## Architecture Overview
 
 ### Application Structure
-This is a Next.js 14 app using App Router with a focus on AI-powered resume optimization and job application tracking.
+This is a Next.js 15 app using App Router with a focus on AI-powered resume optimization and job application tracking. The app is built with TypeScript and uses modern React patterns including hooks and context providers.
 
 **Core Data Flow:**
-1. **File Upload** → Supabase Storage → OCR Processing → Resume Parsing → Database Storage
+1. **File Upload** → Supabase Storage → OCR Processing (Tesseract.js/PDF.js) → AI Structure Analysis → Resume Parsing → Database Storage
 2. **Resume Editing** → Real-time Updates → Version Control → Active Resume Management
 3. **AI Enhancement** → OpenAI API → Resume Analysis → Optimization Suggestions
 
@@ -42,11 +42,12 @@ This is a Next.js 14 app using App Router with a focus on AI-powered resume opti
 - User data isolation through `auth.uid()` checks
 
 **Resume Processing Pipeline:**
-1. `ResumeUpload` → `ResumeProcessor` → `OCRProcessor` → `ResumeParser` → Database
+1. `ResumeUpload` → `ResumeProcessor` → `OCRProcessor` → AI Structure Analysis → Database
 2. File stored in Supabase Storage at `{userId}/{timestamp}.{ext}`
-3. OCR extracts text using Tesseract.js
-4. Parser extracts structured data (contact, experience, education, skills)
-5. Content stored as JSONB in `resumes.content`
+3. OCR extracts text using Tesseract.js (with PDF.js for PDFs)
+4. AI analyzes and structures content using OpenAI API
+5. Content stored as JSONB in `resumes.content` with typed interfaces
+6. Processing includes validation and error handling with user feedback
 
 **State Management:**
 - Zustand for lightweight client state
@@ -70,33 +71,69 @@ This is a Next.js 14 app using App Router with a focus on AI-powered resume opti
 
 ### Resume Content Structure (JSONB)
 ```typescript
-{
-  contact: { name, email, phone, location, linkedin, github },
-  summary: string,
-  experience: [{ company, title, duration, description, achievements }],
-  education: [{ institution, degree, field, duration, gpa }],
-  skills: { technical: [], soft: [], languages: [] },
-  projects: [{ name, description, technologies, url }]
+interface ResumeContent {
+  contact: {
+    name?: string
+    email?: string
+    phone?: string
+    location?: string
+    linkedin?: string
+    github?: string
+    website?: string
+  }
+  summary?: string
+  experience: Array<{
+    title: string
+    company: string
+    location?: string
+    startDate?: string
+    endDate?: string
+    current?: boolean
+    description?: string
+    achievements?: string[]
+  }>
+  education: Array<{
+    degree: string
+    school: string
+    location?: string
+    graduationDate?: string
+    gpa?: string
+    honors?: string[]
+  }>
+  skills: string[]
+  projects?: Array<{
+    name: string
+    description: string
+    details?: string[]
+    technologies?: string[]
+    url?: string
+    startDate?: string
+    endDate?: string
+  }>
+  certifications?: string[]
+  languages?: string[]
+  raw_text: string
 }
 ```
 
 ### File Processing Architecture
 
 **Upload Flow:**
-- `ResumeUpload` (drag/drop) → `ResumeProcessor` (orchestration) → `OCRProcessor` (text extraction) → `ResumeParser` (structured parsing)
+- `ResumeUpload` (drag/drop) → `ResumeProcessor` (orchestration) → `OCRProcessor` (text extraction) → AI Structure Analysis → Database
 - Files validated for type (PDF/DOC/DOCX) and size (max 10MB)
 - Storage uses user-specific paths for security
+- Multi-step processing with progress indicators and error handling
 
 **OCR Processing:**
 - PDF text extraction attempted first
 - Tesseract.js OCR fallback for image-based content
 - Worker cleanup to prevent memory leaks
 
-**Resume Parsing:**
-- Regex-based extraction for contact info, dates, sections
-- Experience parsing with company/title/duration extraction
-- Education parsing with institution/degree/field extraction
-- Skills extraction supporting various formats
+**AI Structure Analysis:**
+- OpenAI API integration for intelligent content parsing
+- Structured data extraction with proper typing
+- Validation and error handling for incomplete data
+- Fallback parsing methods for edge cases
 
 ### Component Architecture
 
@@ -113,6 +150,11 @@ This is a Next.js 14 app using App Router with a focus on AI-powered resume opti
 
 ### AI Integration Points
 
+**Current AI Features:**
+- Resume structure analysis and parsing using OpenAI API
+- Intelligent content extraction from uploaded files
+- Custom AI hooks (`useAI`) for reusable AI functionality
+
 **Planned AI Features:**
 - Resume analysis and scoring
 - ATS compatibility checking
@@ -121,18 +163,21 @@ This is a Next.js 14 app using App Router with a focus on AI-powered resume opti
 - Cover letter generation
 
 **Implementation Pattern:**
-- AI services in `lib/ai/` directory
-- OpenAI API integration with error handling
+- AI services in `lib/ai/` directory with OpenAI client
+- Custom hooks in `hooks/useAI.ts` for component integration
+- Error handling and retry logic for API calls
 - Results stored in `ai_reviews` table
 - UI integration through existing "AI Enhance" buttons
 
 ### Development Notes
 
 **Common Issues to Watch:**
-- OCR processing can be memory-intensive, ensure proper worker cleanup
-- PDF parsing may fail on complex layouts, implement fallback strategies
+- OCR processing can be memory-intensive, ensure proper worker cleanup in `OCRProcessor`
+- PDF parsing may fail on complex layouts, AI parsing provides better fallback
 - Supabase RLS policies must be properly configured for user data access
-- File upload size limits enforced both client and server-side
+- File upload size limits enforced both client and server-side (max 10MB)
+- OpenAI API rate limits and error handling in AI processing
+- Mammoth.js for DOCX processing requires proper error handling
 
 **Testing Strategy:**
 - Test complete upload → OCR → parsing → editing workflow

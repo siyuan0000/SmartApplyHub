@@ -13,12 +13,14 @@ export function createApiClient(request: NextRequest) {
         get(name: string) {
           return request.cookies.get(name)?.value
         },
-        set(name: string, value: string, options: CookieOptions) {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        set(_name: string, _value: string, _options: CookieOptions) {
           // API routes handle cookie setting differently - this is handled by middleware
           // We include this for completeness but it won't be used in practice
           console.warn('Cookie setting in API routes should be handled by middleware')
         },
-        remove(name: string, options: CookieOptions) {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        remove(_name: string, _options: CookieOptions) {
           // API routes handle cookie removal differently - this is handled by middleware
           console.warn('Cookie removal in API routes should be handled by middleware')
         },

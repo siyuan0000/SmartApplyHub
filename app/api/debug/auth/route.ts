@@ -75,7 +75,8 @@ export async function GET(request: NextRequest) {
   }
 }
 
-export async function POST(request: NextRequest) {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export async function POST(_request: NextRequest) {
   return NextResponse.json(
     { message: 'Use GET method for auth debugging' },
     { status: 405 }
