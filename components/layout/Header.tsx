@@ -16,7 +16,8 @@ export function Header({ onToggleSidebar }: HeaderProps) {
           variant="ghost"
           size="icon"
           onClick={onToggleSidebar}
-          className="md:hidden"
+          className="hover:bg-muted/80"
+          title="Toggle sidebar (Ctrl+\)"
         >
           <Menu className="h-5 w-5" />
         </Button>
