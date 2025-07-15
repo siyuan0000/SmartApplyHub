@@ -130,11 +130,25 @@ export function ResumePreview({ resumeId }: ResumePreviewProps) {
             background: white !important;
             font-size: 12pt !important;
             line-height: 1.4 !important;
+            box-shadow: none !important;
+            border: none !important;
           }
           
           .w-full {
             max-width: none !important;
             margin: 0 !important;
+          }
+          
+          /* Remove all container styling for print */
+          .resume-preview > div {
+            box-shadow: none !important;
+            border: none !important;
+            padding: 0 !important;
+          }
+          
+          .resume-preview .shadow-sm,
+          .resume-preview .shadow-lg {
+            box-shadow: none !important;
           }
           
           /* Page setup */

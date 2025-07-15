@@ -171,25 +171,57 @@ export default function ResumePage() {
           }
           
           @media print {
-            /* Hide everything except preview for printing */
-            .grid.lg\\:grid-cols-2 {
-              display: block !important;
+            /* Hide all UI chrome and navigation */
+            .sidebar, 
+            nav, 
+            .app-header,
+            header {
+              display: none !important;
             }
             
+            /* Hide AppLayout padding and styling */
+            main {
+              padding: 0 !important;
+              background: white !important;
+            }
+            
+            /* Hide page header with buttons */
+            .space-y-6 > div:first-child {
+              display: none !important;
+            }
+            
+            /* Hide split view layout, show only preview */
+            .grid.lg\\:grid-cols-2 {
+              display: block !important;
+              height: auto !important;
+              gap: 0 !important;
+            }
+            
+            /* Hide editor panel completely */
             .grid.lg\\:grid-cols-2 > div:first-child {
               display: none !important;
             }
             
+            /* Show only preview panel */
             .grid.lg\\:grid-cols-2 > div:last-child {
               display: block !important;
               overflow: visible !important;
               height: auto !important;
               border: none !important;
               background: white !important;
+              width: 100% !important;
+              max-width: none !important;
             }
             
+            /* Hide preview panel header */
             .grid.lg\\:grid-cols-2 > div:last-child > div:first-child {
               display: none !important;
+            }
+            
+            /* Ensure preview content fills page */
+            .grid.lg\\:grid-cols-2 > div:last-child > div:last-child {
+              overflow: visible !important;
+              height: auto !important;
             }
           }
         `}</style>
