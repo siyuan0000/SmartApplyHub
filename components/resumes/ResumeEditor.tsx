@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -11,7 +11,11 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { ResumeContent } from '@/lib/resume/parser'
 import { useResumeEditor, formatAchievements, parseAchievements } from '@/hooks/useResumeEditor'
 import { useAI } from '@/hooks/useAI'
-import { Save, Plus, Trash2, Sparkles, AlertCircle } from 'lucide-react'
+import { ResumeEditorSidebar } from './ResumeEditorSidebar'
+import { useUIStore } from '@/store/ui'
+import { useIsMobile } from '@/hooks/use-mobile'
+import { cn } from '@/lib/utils'
+import { Plus, Trash2, Sparkles, AlertCircle } from 'lucide-react'
 
 interface ResumeEditorProps {
   resumeId: string
@@ -22,7 +26,6 @@ export function ResumeEditor({ resumeId, onSave }: ResumeEditorProps) {
   const { 
     content, 
     loading, 
-    saving, 
     error,
     loadResume, 
     saveResume, 
@@ -43,6 +46,13 @@ export function ResumeEditor({ resumeId, onSave }: ResumeEditorProps) {
   
   const [activeSection, setActiveSection] = useState<string>('contact')
   const { enhanceSection, isEnhancing, error: aiError, clearError: clearAIError } = useAI()
+  
+  const isMobile = useIsMobile()
+  const autoCollapseTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const { 
+    editorSidebarCollapsed,
+    autoCollapseEditorSidebar
+  } = useUIStore()
 
   const handleEnhanceSection = async (sectionType: string, currentContent: string) => {
     try {
@@ -83,6 +93,25 @@ export function ResumeEditor({ resumeId, onSave }: ResumeEditorProps) {
     }
   }
 
+  // Auto-collapse functionality for main content area
+  const scheduleAutoCollapse = useCallback(() => {
+    if (isMobile) return
+    
+    if (autoCollapseTimeoutRef.current) {
+      clearTimeout(autoCollapseTimeoutRef.current)
+    }
+    
+    autoCollapseTimeoutRef.current = setTimeout(() => {
+      autoCollapseEditorSidebar()
+    }, 500)
+  }, [isMobile, autoCollapseEditorSidebar])
+
+  const handleMainContentClick = useCallback(() => {
+    if (!isMobile && !editorSidebarCollapsed) {
+      scheduleAutoCollapse()
+    }
+  }, [isMobile, editorSidebarCollapsed, scheduleAutoCollapse])
+
 
   if (loading) {
     return (
@@ -110,65 +139,48 @@ export function ResumeEditor({ resumeId, onSave }: ResumeEditorProps) {
   ]
 
   return (
-    <div className="space-y-4">
-      {aiError && (
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>
-            AI Enhancement Error: {aiError}
-            <button onClick={clearAIError} className="ml-2 text-sm underline">
-              Dismiss
-            </button>
-          </AlertDescription>
-        </Alert>
-      )}
-      {error && (
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>
-            {error}
-            <button onClick={clearError} className="ml-2 text-sm underline">
-              Dismiss
-            </button>
-          </AlertDescription>
-        </Alert>
-      )}
+    <div className="flex h-full">
+      {/* Editor Sidebar */}
+      <ResumeEditorSidebar
+        sections={sections}
+        activeSection={activeSection}
+        onSectionChange={setActiveSection}
+      />
       
-      <div className="grid grid-cols-1 xl:grid-cols-4 gap-4">
-      {/* Section Navigation */}
-      <div className="xl:col-span-1">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Sections</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {sections.map((section) => (
-              <Button
-                key={section.id}
-                variant={activeSection === section.id ? 'default' : 'ghost'}
-                className="w-full justify-start gap-2"
-                onClick={() => setActiveSection(section.id)}
-              >
-                <span>{section.icon}</span>
-                {section.label}
-              </Button>
-            ))}
-            <div className="pt-4 border-t">
-              <Button
-                onClick={handleSave}
-                disabled={saving}
-                className="w-full gap-2"
-              >
-                <Save className="h-4 w-4" />
-                {saving ? 'Saving...' : 'Save Resume'}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Section Editor */}
-      <div className="xl:col-span-3">
+      {/* Main Content */}
+      <div 
+        className={cn(
+          "flex-1 transition-all duration-300 ease-in-out",
+          "overflow-y-auto"
+        )}
+        onClick={handleMainContentClick}
+      >
+        <div className="p-4 space-y-4">
+          {aiError && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                AI Enhancement Error: {aiError}
+                <button onClick={clearAIError} className="ml-2 text-sm underline">
+                  Dismiss
+                </button>
+              </AlertDescription>
+            </Alert>
+          )}
+          {error && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                {error}
+                <button onClick={clearError} className="ml-2 text-sm underline">
+                  Dismiss
+                </button>
+              </AlertDescription>
+            </Alert>
+          )}
+          
+          {/* Section Editor */}
+          <div>
         {activeSection === 'contact' && (
           <Card>
             <CardHeader>
@@ -537,8 +549,9 @@ export function ResumeEditor({ resumeId, onSave }: ResumeEditorProps) {
             </CardContent>
           </Card>
         )}
+          </div>
+        </div>
       </div>
-    </div>
     </div>
   )
 }

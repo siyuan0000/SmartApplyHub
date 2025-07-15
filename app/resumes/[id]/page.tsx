@@ -1,13 +1,13 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useEffect } from 'react'
 import { useParams } from 'next/navigation'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { ResumeEditor } from '@/components/resumes/ResumeEditor'
 import { ResumePreview } from '@/components/resumes/ResumePreview'
 import { Button } from '@/components/ui/button'
 import { useResumeEditor, useResumeEditorComputed } from '@/hooks/useResumeEditor'
-import { ArrowLeft, Eye, Download, Edit, AlertCircle } from 'lucide-react'
+import { ArrowLeft, Eye, Download, Edit, AlertCircle, Save } from 'lucide-react'
 import Link from 'next/link'
 
 export default function ResumePage() {
@@ -109,6 +109,14 @@ export default function ResumePage() {
             </div>
           </div>
           <div className="flex gap-2">
+            <Button
+              onClick={saveResume}
+              disabled={saving}
+              className="gap-2"
+            >
+              <Save className="h-4 w-4" />
+              {saving ? 'Saving...' : 'Save Resume'}
+            </Button>
             <Button 
               variant="outline" 
               className="gap-2"
