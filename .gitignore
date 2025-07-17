@@ -16,6 +16,9 @@ playwright/.cache/
 .next/
 next-env.d.ts
 
+#models
+/models
+
 # production
 /build
 /dist
