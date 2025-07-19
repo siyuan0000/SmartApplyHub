@@ -108,15 +108,15 @@ export function AppLayout({ children }: AppLayoutProps) {
       <div 
         className={cn(
           "flex-1 flex flex-col overflow-hidden transition-all duration-300 ease-in-out",
-          // Add margin for desktop when sidebar is expanded
-          !isMobile && !sidebarCollapsed && "ml-0"
+          // Ensure consistent layout without content shifting
+          !isMobile && "min-w-0"
         )}
         ref={mainContentRef}
         onClick={handleMainContentClick}
       >
         <Header onToggleSidebar={toggleSidebar} />
         
-        <main className="flex-1 overflow-y-auto bg-muted/10 p-6">
+        <main className="flex-1 overflow-y-auto bg-muted/10 p-4 sm:p-6">
           {children}
         </main>
       </div>

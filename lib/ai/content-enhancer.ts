@@ -39,11 +39,11 @@ export class ContentEnhancerService extends BaseOpenAIService {
 
     const messages = [
       {
-        role: 'system',
+        role: 'system' as const,
         content: 'You are a professional resume writer. Enhance resume sections to be more compelling and ATS-friendly while maintaining accuracy.'
       },
       {
-        role: 'user',
+        role: 'user' as const,
         content: prompt
       }
     ]

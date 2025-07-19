@@ -36,11 +36,11 @@ export class ResumeAnalyzerService extends BaseOpenAIService {
 
     const messages = [
       {
-        role: 'system',
+        role: 'system' as const,
         content: 'You are an expert resume reviewer and career coach. Provide detailed, actionable feedback to help improve resumes.'
       },
       {
-        role: 'user',
+        role: 'user' as const,
         content: prompt
       }
     ]

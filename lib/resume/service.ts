@@ -2,6 +2,7 @@ import { supabase } from '@/lib/supabase'
 import { Database } from '@/types/database.types'
 import { ResumeContent } from './parser'
 import { getCurrentUserProfile } from '@/lib/supabase/user'
+import { StorageService } from '@/lib/supabase/storage'
 
 type ResumeRow = Database['public']['Tables']['resumes']['Row']
 type ResumeInsert = Database['public']['Tables']['resumes']['Insert']
@@ -115,6 +116,29 @@ export class ResumeService {
   }
 
   static async deleteResume(id: string): Promise<void> {
+    // First, get the resume to access the file_url before deletion
+    const resume = await this.getResume(id)
+    if (!resume) {
+      throw new Error('Resume not found')
+    }
+
+    // Delete the file from storage if it exists
+    if (resume.file_url) {
+      try {
+        // Extract the storage path from the file_url
+        // The file_url might be a full URL or just the path
+        const storagePath = resume.file_url.includes('/') 
+          ? resume.file_url.split('/storage/v1/object/public/resumes/')[1] || resume.file_url
+          : resume.file_url
+        
+        await StorageService.deleteResumeFile(storagePath)
+      } catch (storageError) {
+        console.warn('Failed to delete file from storage:', storageError)
+        // Continue with database deletion even if storage deletion fails
+      }
+    }
+
+    // Delete the resume record from the database
     const { error } = await supabase
       .from('resumes')
       .delete()

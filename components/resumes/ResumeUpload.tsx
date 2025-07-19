@@ -92,7 +92,7 @@ export function ResumeUpload({ onUploadComplete, onUploadError }: ResumeUploadPr
           <>
             <div {...getRootProps()} className="cursor-pointer w-full">
               <input {...getInputProps()} />
-              <Upload className="h-12 w-12 text-muted-foreground mb-4" />
+              <Upload className="h-12 w-12 text-muted-foreground mb-4 mx-auto" />
               <h3 className="text-lg font-medium mb-2">Upload Your Resume</h3>
               <p className="text-sm text-muted-foreground mb-4">
                 {isDragActive ? 'Drop your resume here' : 'Drag and drop your resume file or click to browse'}
@@ -110,7 +110,7 @@ export function ResumeUpload({ onUploadComplete, onUploadError }: ResumeUploadPr
 
         {uploadStatus === 'uploading' && (
           <>
-            <FileText className="h-12 w-12 text-blue-600 mb-4" />
+            <FileText className="h-12 w-12 text-blue-600 mb-4 mx-auto" />
             <h3 className="text-lg font-medium mb-2">Uploading Resume</h3>
             <div className="w-full max-w-xs mb-4">
               <Progress value={uploadProgress} className="mb-2" />
@@ -124,7 +124,7 @@ export function ResumeUpload({ onUploadComplete, onUploadError }: ResumeUploadPr
 
         {uploadStatus === 'success' && (
           <>
-            <CheckCircle className="h-12 w-12 text-green-600 mb-4" />
+            <CheckCircle className="h-12 w-12 text-green-600 mb-4 mx-auto" />
             <h3 className="text-lg font-medium mb-2">Upload Successful!</h3>
             <p className="text-sm text-muted-foreground mb-4">
               Your resume has been uploaded and is ready for processing.
@@ -137,7 +137,7 @@ export function ResumeUpload({ onUploadComplete, onUploadError }: ResumeUploadPr
 
         {uploadStatus === 'error' && (
           <>
-            <AlertCircle className="h-12 w-12 text-red-600 mb-4" />
+            <AlertCircle className="h-12 w-12 text-red-600 mb-4 mx-auto" />
             <h3 className="text-lg font-medium mb-2">Upload Failed</h3>
             <p className="text-sm text-red-600 mb-4">{errorMessage}</p>
             <Button onClick={resetUpload} variant="outline">

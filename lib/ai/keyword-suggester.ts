@@ -23,11 +23,11 @@ export class KeywordSuggesterService extends BaseOpenAIService {
 
     const messages = [
       {
-        role: 'system',
+        role: 'system' as const,
         content: 'You are a keyword optimization expert. Identify missing keywords that would improve resume-job matching.'
       },
       {
-        role: 'user',
+        role: 'user' as const,
         content: prompt
       }
     ]

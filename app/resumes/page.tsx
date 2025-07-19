@@ -7,12 +7,13 @@ import { AppLayout } from '@/components/layout/AppLayout'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { ResumeProcessor } from '@/components/resumes/ResumeProcessor'
 import { ResumeService } from '@/lib/resume/service'
 import { useAuth } from '@/hooks/useAuth'
 import { ensureUserExists } from '@/lib/supabase/user'
 import { Database } from '@/types/database.types'
-import { FileText, Edit, Download, Eye, Plus, Star } from 'lucide-react'
+import { FileText, Edit, Download, Eye, Plus, Star, Trash2 } from 'lucide-react'
 
 type ResumeRow = Database['public']['Tables']['resumes']['Row']
 
@@ -21,6 +22,8 @@ export default function Resumes() {
   const [loading, setLoading] = useState(true)
   const [showUploader, setShowUploader] = useState(false)
   const [setupError, setSetupError] = useState<string | null>(null)
+  const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; resume: ResumeRow | null }>({ open: false, resume: null })
+  const [deleting, setDeleting] = useState(false)
   const { user } = useAuth()
 
   const loadResumes = useCallback(async () => {
@@ -52,6 +55,30 @@ export default function Resumes() {
     await loadResumes()
   }
 
+  const handleDeleteClick = (resume: ResumeRow) => {
+    setDeleteDialog({ open: true, resume })
+  }
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteDialog.resume) return
+    
+    setDeleting(true)
+    try {
+      await ResumeService.deleteResume(deleteDialog.resume.id)
+      await loadResumes()
+      setDeleteDialog({ open: false, resume: null })
+    } catch (error) {
+      console.error('Failed to delete resume:', error)
+      alert(error instanceof Error ? error.message : 'Failed to delete resume')
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  const handleDeleteCancel = () => {
+    setDeleteDialog({ open: false, resume: null })
+  }
+
   const getRelativeTime = (dateString: string): string => {
     const date = new Date(dateString)
     const now = new Date()
@@ -66,7 +93,7 @@ export default function Resumes() {
 
   return (
     <AppLayout>
-      <div className="space-y-6">
+      <div className="section-spacing">
         {/* Header */}
         <div className="flex justify-between items-center">
           <div>
@@ -136,15 +163,15 @@ export default function Resumes() {
             </CardContent>
           </Card>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid-responsive">
             {resumes.map((resume) => (
-              <Card key={resume.id} className="group hover:shadow-lg transition-shadow">
+              <Card key={resume.id} className="group hover:shadow-lg transition-shadow flex flex-col">
                 <CardHeader className="pb-3">
-                  <div className="flex items-start justify-between">
+                  <div className="flex items-start justify-between gap-2">
                     <div className="flex items-center gap-2 min-w-0 flex-1">
                       <FileText className="h-5 w-5 text-blue-600 shrink-0" />
                       <div className="min-w-0 flex-1">
-                        <CardTitle className="text-lg truncate" title={resume.title}>
+                        <CardTitle className="text-base sm:text-lg truncate leading-tight" title={resume.title}>
                           {resume.title}
                         </CardTitle>
                         <CardDescription className="flex items-center gap-2 mt-1">
@@ -153,21 +180,21 @@ export default function Resumes() {
                       </div>
                     </div>
                     {resume.is_active && (
-                      <Badge variant="default" className="gap-1">
+                      <Badge variant="default" className="gap-1 shrink-0">
                         <Star className="h-3 w-3" />
                         Active
                       </Badge>
                     )}
                   </div>
                 </CardHeader>
-                <CardContent className="space-y-4">
+                <CardContent className="space-y-4 flex-1 flex flex-col">
                   {/* AI Score Placeholder */}
                   <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
                     <span className="text-sm font-medium">AI Optimization Score</span>
                     <div className="flex items-center gap-2">
                       <div className="w-16 h-2 bg-secondary rounded-full overflow-hidden">
                         <div 
-                          className="h-full bg-gradient-to-r from-red-500 via-yellow-500 to-green-500 rounded-full"
+                          className="h-full bg-gradient-to-r from-destructive via-yellow-500 to-green-600 rounded-full"
                           style={{ width: '75%' }}
                         />
                       </div>
@@ -181,36 +208,48 @@ export default function Resumes() {
                   </p>
 
                   {/* Actions */}
-                  <div className="flex flex-col sm:flex-row gap-2">
-                    <div className="flex gap-2 flex-1">
+                  <div className="flex flex-col gap-2 mt-auto">
+                    <div className="grid grid-cols-2 gap-2">
                       <Button 
                         size="sm" 
                         variant="outline" 
-                        className="flex-1 gap-1 min-w-0"
+                        className="gap-1 min-w-0"
                         onClick={() => window.open(`/resumes/${resume.id}`, '_blank')}
                       >
                         <Eye className="h-4 w-4 shrink-0" />
-                        <span className="truncate">View</span>
+                        <span className="hidden sm:inline truncate">View</span>
                       </Button>
                       <Button 
                         size="sm" 
                         variant="outline" 
-                        className="flex-1 gap-1 min-w-0"
+                        className="gap-1 min-w-0"
                         onClick={() => window.location.href = `/resumes/${resume.id}`}
                       >
                         <Edit className="h-4 w-4 shrink-0" />
-                        <span className="truncate">Edit</span>
+                        <span className="hidden sm:inline truncate">Edit</span>
                       </Button>
                     </div>
-                    <Button 
-                      size="sm" 
-                      variant="outline" 
-                      className="gap-1 sm:w-auto w-full"
-                      title="Download Resume"
-                    >
-                      <Download className="h-4 w-4" />
-                      <span className="sm:hidden">Download</span>
-                    </Button>
+                    <div className="grid grid-cols-2 gap-2">
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        className="gap-1 min-w-0"
+                        title="Download Resume"
+                      >
+                        <Download className="h-4 w-4 shrink-0" />
+                        <span className="hidden sm:inline truncate">Download</span>
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        className="gap-1 min-w-0"
+                        onClick={() => handleDeleteClick(resume)}
+                        title="Delete Resume"
+                      >
+                        <Trash2 className="h-4 w-4 shrink-0" />
+                        <span className="hidden sm:inline truncate">Delete</span>
+                      </Button>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -264,6 +303,40 @@ export default function Resumes() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Delete Confirmation Dialog */}
+        <Dialog open={deleteDialog.open} onOpenChange={(open) => !open && handleDeleteCancel()}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Delete Resume</DialogTitle>
+              <DialogDescription>
+                Are you sure you want to delete &quot;{deleteDialog.resume?.title}&quot;? 
+                {deleteDialog.resume?.is_active && (
+                  <span className="text-orange-600 font-medium">
+                    {' '}This is your active resume.
+                  </span>
+                )}
+                {' '}This action cannot be undone.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={handleDeleteCancel}
+                disabled={deleting}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={handleDeleteConfirm}
+                disabled={deleting}
+              >
+                {deleting ? 'Deleting...' : 'Delete Resume'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </AppLayout>
   )

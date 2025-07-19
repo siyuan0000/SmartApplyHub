@@ -42,17 +42,42 @@ export function ResumePreview({ resumeId }: ResumePreviewProps) {
     )
   }
 
+  // Define section order - can be easily reordered in the future
+  const SECTION_ORDER = [
+    'header',
+    'summary', 
+    'education',
+    'experience',
+    'projects',
+    'skills'
+  ] as const
+
+  // Section rendering functions
+  const renderSection = (sectionType: typeof SECTION_ORDER[number]) => {
+    switch (sectionType) {
+      case 'header':
+        return <PreviewHeader key="header" contact={content.contact} />
+      case 'summary':
+        return <PreviewSummary key="summary" summary={content.summary} />
+      case 'education':
+        return <PreviewEducation key="education" education={content.education} />
+      case 'experience':
+        return <PreviewExperience key="experience" experience={content.experience} />
+      case 'projects':
+        return <PreviewProjects key="projects" projects={content.projects} />
+      case 'skills':
+        return <PreviewSkills key="skills" skills={content.skills} />
+      default:
+        return null
+    }
+  }
+
   return (
     <div className="resume-preview bg-white">
       <div className="w-full">
         {/* Print-friendly container */}
         <div className="bg-white shadow-sm min-h-full p-4 print:p-6 print:shadow-none print:min-h-0">
-          <PreviewHeader contact={content.contact} />
-          <PreviewSummary summary={content.summary} />
-          <PreviewExperience experience={content.experience} />
-          <PreviewEducation education={content.education} />
-          <PreviewSkills skills={content.skills} />
-          <PreviewProjects projects={content.projects} />
+          {SECTION_ORDER.map(renderSection)}
         </div>
       </div>
       

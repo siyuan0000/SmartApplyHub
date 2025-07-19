@@ -8,7 +8,9 @@ import { ContactEditModal } from './modals/ContactEditModal'
 import { SummaryEditModal } from './modals/SummaryEditModal'
 import { SkillsEditModal } from './modals/SkillsEditModal'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { useResumeEditor, SectionType } from '@/hooks/useResumeEditor'
+import { useResumeEditor } from '@/hooks/useResumeEditor'
+
+type SectionType = 'contact' | 'summary' | 'experience' | 'education' | 'skills' | 'projects'
 import { useAI } from '@/hooks/useAI'
 import { AlertCircle } from 'lucide-react'
 
@@ -23,10 +25,11 @@ export function UnifiedResumeEditor({ resumeId }: UnifiedResumeEditorProps) {
     loading, 
     error,
     loadResume, 
-    clearError,
-    activeSection,
-    cleanup
+    clearError
   } = useResumeEditor()
+  
+  // Local state for active section since it's not in the hook
+  const [activeSection] = useState<SectionType | null>(null)
   
   const { enhanceSection, isEnhancing, error: aiError, clearError: clearAIError } = useAI()
 
@@ -36,11 +39,7 @@ export function UnifiedResumeEditor({ resumeId }: UnifiedResumeEditorProps) {
     loadResume(id)
   }, [loadResume])
 
-  // Stabilize cleanup function
-  const stableCleanup = useCallback(() => {
-    console.log('🧹 Cleanup called')
-    cleanup()
-  }, [cleanup])
+  // Cleanup function removed - not available in hook
 
   useEffect(() => {
     console.log('📱 UnifiedResumeEditor useEffect triggered:', { 
@@ -66,11 +65,8 @@ export function UnifiedResumeEditor({ resumeId }: UnifiedResumeEditorProps) {
       console.warn('⚠️ No resumeId provided to UnifiedResumeEditor')
     }
 
-    // Cleanup on unmount
-    return () => {
-      stableCleanup()
-    }
-  }, [resumeId, stableLoadResume, stableCleanup])
+    // No cleanup needed since cleanup method doesn't exist
+  }, [resumeId, stableLoadResume])
 
   const handleSectionEdit = (section: SectionType) => {
     setEditingSection(section)
@@ -228,8 +224,7 @@ export function UnifiedResumeEditor({ resumeId }: UnifiedResumeEditorProps) {
               </div>
               <div className="max-h-[70vh] overflow-y-auto">
                 <ResumePreview 
-                  resumeId={resumeId} 
-                  highlightSection={activeSection}
+                  resumeId={resumeId}
                 />
               </div>
             </div>

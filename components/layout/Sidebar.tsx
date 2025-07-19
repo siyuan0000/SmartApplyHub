@@ -103,14 +103,16 @@ export function Sidebar({ }: SidebarProps) {
                 <Button
                   variant={isActive ? 'default' : 'ghost'}
                   className={cn(
-                    'w-full gap-3 transition-all duration-200',
-                    sidebarCollapsed && !sidebarHovered ? 'justify-center px-2' : 'justify-start'
+                    'w-full transition-all duration-200',
+                    sidebarCollapsed && !sidebarHovered 
+                      ? 'justify-center px-0 min-w-0' 
+                      : 'justify-start gap-3'
                   )}
                 >
-                  <Icon className="h-4 w-4 shrink-0" />
+                  <Icon className="btn-icon" />
                   <span className={cn(
                     'transition-all duration-150 ease-in-out overflow-hidden whitespace-nowrap',
-                    shouldShowContent ? 'opacity-100 w-auto' : 'opacity-0 w-0'
+                    shouldShowContent ? 'opacity-100 w-auto ml-3' : 'opacity-0 w-0 ml-0'
                   )}>
                     {item.name}
                   </span>

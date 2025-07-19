@@ -135,4 +135,38 @@
     -webkit-box-orient: vertical;
     overflow: hidden;
   }
+
+  /* Icon centering utilities */
+  .icon-center {
+    @apply flex items-center justify-center;
+  }
+
+  /* Consistent spacing utilities */
+  .section-spacing {
+    @apply space-y-6;
+  }
+
+  .card-spacing {
+    @apply space-y-4;
+  }
+
+  /* Responsive padding utilities */
+  .container-padding {
+    @apply px-4 sm:px-6;
+  }
+
+  /* Button icon sizing consistency */
+  .btn-icon {
+    @apply h-4 w-4 shrink-0;
+  }
+
+  /* Form field spacing */
+  .form-spacing {
+    @apply space-y-4;
+  }
+
+  /* Grid responsive utilities */
+  .grid-responsive {
+    @apply grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6;
+  }
 }

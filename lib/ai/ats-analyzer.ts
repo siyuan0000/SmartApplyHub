@@ -45,11 +45,11 @@ export class ATSAnalyzerService extends BaseOpenAIService {
 
     const messages = [
       {
-        role: 'system',
+        role: 'system' as const,
         content: 'You are an ATS (Applicant Tracking System) expert. Analyze resumes for ATS compatibility and keyword optimization.'
       },
       {
-        role: 'user',
+        role: 'user' as const,
         content: prompt
       }
     ]

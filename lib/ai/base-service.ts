@@ -14,7 +14,7 @@ export class BaseOpenAIService {
   }
 
   protected static async makeRequest(
-    messages: any[],
+    messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
     maxTokens: number = 1500,
     temperature: number = 0.7
   ) {

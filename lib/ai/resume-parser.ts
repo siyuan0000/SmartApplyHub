@@ -1,5 +1,5 @@
-import { BaseOpenAIService } from './base-service'
-import { ResumeContent } from '@/lib/resume/parser'
+import { BaseOpenAIService } from "./base-service";
+import { ResumeContent } from "@/lib/resume/parser";
 
 // Resume parser service - converts raw text to structured JSON
 export class ResumeParserService extends BaseOpenAIService {
@@ -58,23 +58,24 @@ Return JSON matching this EXACT structure:
       "url": "exact url if provided"
     }
   ],
-  "raw_text": "${rawText}"
+  "raw_text": append the inpt raw_text here.
 }
 
-Do not enhance content - only restructure existing information.`
+Do not enhance content - only restructure existing information.`;
 
     const messages = [
-      { 
-        role: 'system', 
-        content: 'You are a resume parsing specialist. Restructure content without enhancement.' 
+      {
+        role: "system" as const,
+        content:
+          "You are a resume parsing specialist. Restructure content without enhancement.",
       },
-      { 
-        role: 'user', 
-        content: prompt 
-      }
-    ]
+      {
+        role: "user" as const,
+        content: prompt,
+      },
+    ];
 
-    const content = await this.makeRequest(messages, 3000, 0.1)
-    return JSON.parse(content)
+    const content = await this.makeRequest(messages, 3000, 0.1);
+    return JSON.parse(content);
   }
-} 
+}
