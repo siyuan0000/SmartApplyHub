@@ -1,4 +1,4 @@
-# AI Resume Pro
+# Smart Apply
 
 An AI-powered job application platform that helps users optimize their resumes, find relevant jobs, and track their application progress.
 
