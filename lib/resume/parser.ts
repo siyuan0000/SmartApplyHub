@@ -38,6 +38,11 @@ export interface ResumeProject {
   endDate?: string
 }
 
+export interface ResumeSection {
+  section_name: string // Original header text from user's resume
+  content: unknown // The actual content for this section
+}
+
 export interface ResumeContent {
   contact: ResumeContact
   summary?: string
@@ -47,6 +52,9 @@ export interface ResumeContent {
   projects?: ResumeProject[]
   certifications?: string[]
   languages?: string[]
+  // Language and cultural metadata
+  detected_language?: 'en' | 'zh'
+  original_headers?: Record<string, string> // Maps section types to original header text
   raw_text: string
 }
 

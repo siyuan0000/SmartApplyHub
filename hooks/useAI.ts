@@ -11,7 +11,7 @@ export interface UseAIReturn {
   enhanceSection: (sectionType: string, content: string, jobDescription?: string) => Promise<ContentEnhancementResult>
   
   // Resume Parsing
-  parseResumeStructure: (rawText: string) => Promise<ResumeContent>
+  parseResumeStructure: (rawText: string, progressCallback?: (progress: number) => void) => Promise<ResumeContent>
   
   // Keyword Suggestions
   getKeywordSuggestions: (resumeId: string, jobDescription: string) => Promise<string[]>
@@ -160,25 +160,57 @@ export function useAI(): UseAIReturn {
     }
   }
 
-  const parseResumeStructure = async (rawText: string): Promise<ResumeContent> => {
+  const parseResumeStructure = async (rawText: string, progressCallback?: (progress: number) => void): Promise<ResumeContent> => {
     setIsParsing(true)
     setError(null)
 
     try {
-      const response = await fetch('/api/ai/parse-resume', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include', // Include cookies in request
-        body: JSON.stringify({ rawText }),
-      })
+      // Simulate progress during API call
+      if (progressCallback) {
+        progressCallback(10) // Starting request
+        
+        // Simulate progress while waiting for response
+        const progressInterval = setInterval(() => {
+          // Gradually increase progress but leave room for completion
+          const currentProgress = Math.min(Math.random() * 30 + 40, 80)
+          progressCallback(currentProgress)
+        }, 1000)
 
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to parse resume')
+        const response = await fetch('/api/ai/parse-resume', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ rawText }),
+        })
+
+        clearInterval(progressInterval)
+        progressCallback(90) // Almost done
+
+        if (!response.ok) {
+          const errorData = await response.json()
+          throw new Error(errorData.error || 'Failed to parse resume')
+        }
+
+        const { structuredContent } = await response.json()
+        progressCallback(100) // Complete
+        return structuredContent
+      } else {
+        // Original logic without progress tracking
+        const response = await fetch('/api/ai/parse-resume', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ rawText }),
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json()
+          throw new Error(errorData.error || 'Failed to parse resume')
+        }
+
+        const { structuredContent } = await response.json()
+        return structuredContent
       }
-
-      const { structuredContent } = await response.json()
-      return structuredContent
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Resume parsing failed'
       setError(errorMessage)

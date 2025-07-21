@@ -1,20 +1,27 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { ResumeEditor } from '@/components/resumes/ResumeEditor'
 import { ResumePreview } from '@/components/resumes/ResumePreview'
+import { TemplatePanel } from '@/components/resumes/TemplatePanel'
 import { Button } from '@/components/ui/button'
 import { useResumeEditor, useResumeEditorComputed } from '@/hooks/useResumeEditor'
+import { ResumeLanguage } from '@/lib/templates'
 import { ArrowLeft, Eye, Download, Edit, AlertCircle, Save } from 'lucide-react'
 import Link from 'next/link'
 
 export default function ResumePage() {
   const params = useParams()
   const resumeId = params.id as string
-  const { saving, saveResume } = useResumeEditor()
+  const { content, saving, saveResume } = useResumeEditor()
   const { isDirty } = useResumeEditorComputed()
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>()
+
+  // Get detected language from content
+  const detectedLanguage = (content?.detected_language || 'en') as ResumeLanguage
+  const originalHeaders = content?.original_headers || {}
 
   // Prevent navigation away with unsaved changes
   useEffect(() => {
@@ -138,7 +145,15 @@ export default function ResumePage() {
                 Editor
               </h3>
             </div>
-            <div className="overflow-y-auto flex-1 p-4">
+            <div className="overflow-y-auto flex-1 p-4 space-y-4">
+              {/* Template Selection */}
+              <TemplatePanel
+                currentTemplateId={selectedTemplateId}
+                detectedLanguage={detectedLanguage}
+                onTemplateSelect={setSelectedTemplateId}
+              />
+              
+              {/* Resume Editor */}
               <ResumeEditor resumeId={resumeId} />
             </div>
           </div>
@@ -152,7 +167,12 @@ export default function ResumePage() {
               </h3>
             </div>
             <div className="overflow-y-auto flex-1">
-              <ResumePreview resumeId={resumeId} />
+              <ResumePreview 
+                resumeId={resumeId}
+                templateId={selectedTemplateId}
+                detectedLanguage={detectedLanguage}
+                originalHeaders={originalHeaders}
+              />
             </div>
           </div>
         </div>

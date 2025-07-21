@@ -20,6 +20,48 @@ export class OCRProcessor {
     this.worker = await Tesseract.createWorker('eng')
   }
 
+  static async validatePageCount(file: File): Promise<void> {
+    if (file.type === 'application/pdf') {
+      const pageCount = await this.getPDFPageCount(file)
+      if (pageCount > 1) {
+        throw new Error(`Your resume has ${pageCount} pages. Please upload a 1-page resume only. Multi-page resumes should be condensed to a single page for optimal ATS compatibility.`)
+      }
+    }
+    // For DOCX/DOC files, we'll rely on size limits as proxy for page count
+    // since determining exact page count requires complex layout calculations
+    if (file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || 
+        file.type === 'application/msword') {
+      // Typical 1-page resume with normal formatting is under 500KB
+      // This is a reasonable heuristic for page count validation
+      if (file.size > 750 * 1024) { // 750KB limit for Word docs
+        throw new Error('Your document appears to be quite large. Please ensure it\'s a 1-page resume only. Multi-page resumes should be condensed to a single page for optimal ATS compatibility.')
+      }
+    }
+  }
+
+  private static async getPDFPageCount(file: File): Promise<number> {
+    try {
+      if (typeof window === 'undefined') {
+        throw new Error('PDF page count detection only available in browser environment')
+      }
+
+      const pdfjsLib = await import('pdfjs-dist')
+      pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`
+
+      const arrayBuffer = await file.arrayBuffer()
+      const typedArray = new Uint8Array(arrayBuffer)
+      
+      const loadingTask = pdfjsLib.getDocument({ data: typedArray })
+      const pdf = await loadingTask.promise
+      
+      return pdf.numPages
+    } catch (error) {
+      console.warn('Failed to get PDF page count:', error)
+      // If we can't determine page count, allow processing but log warning
+      return 1
+    }
+  }
+
   static async processFile(file: File): Promise<OCRResult> {
     // Validate file before processing
     if (!file || file.size === 0) {
@@ -29,6 +71,9 @@ export class OCRProcessor {
     if (file.size > 10 * 1024 * 1024) {
       throw new Error('File too large: Maximum file size is 10MB')
     }
+
+    // Validate page count for 1-page requirement
+    await this.validatePageCount(file)
 
     try {
       if (file.type === 'application/pdf') {
@@ -112,26 +157,20 @@ export class OCRProcessor {
       const loadingTask = pdfjsLib.getDocument({ data: typedArray })
       const pdf = await loadingTask.promise
       
-      let fullText = ''
+      // Extract text from first page only (1-page resume requirement)
+      const page = await pdf.getPage(1)
+      const textContent = await page.getTextContent()
       
-      // Extract text from all pages
-      for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
-        const page = await pdf.getPage(pageNum)
-        const textContent = await page.getTextContent()
-        
-        const pageText = textContent.items
-          .map(item => {
-            // Type assertion with runtime check
-            if (isTextItem(item)) {
-              return item.str
-            }
-            return ''
-          })
-          .filter(text => text.length > 0)
-          .join(' ')
-        
-        fullText += pageText + '\n'
-      }
+      const fullText = textContent.items
+        .map(item => {
+          // Type assertion with runtime check
+          if (isTextItem(item)) {
+            return item.str
+          }
+          return ''
+        })
+        .filter(text => text.length > 0)
+        .join(' ')
       
       const cleanedText = fullText.trim()
       

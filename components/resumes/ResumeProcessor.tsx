@@ -17,8 +17,10 @@ import { FileText, Loader2, CheckCircle, AlertCircle } from 'lucide-react'
 interface ProcessingStep {
   id: string
   title: string
+  description?: string
   status: 'pending' | 'processing' | 'completed' | 'error'
   progress: number
+  estimatedTime?: string
 }
 
 interface ResumeProcessorProps {
@@ -30,11 +32,62 @@ export function ResumeProcessor({ onProcessingComplete }: ResumeProcessorProps) 
   const [extractedContent, setExtractedContent] = useState<ResumeContent | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [steps, setSteps] = useState<ProcessingStep[]>([
-    { id: 'upload', title: 'Upload Resume', status: 'pending', progress: 0 },
-    { id: 'ocr', title: 'Extract Text', status: 'pending', progress: 0 },
-    { id: 'ai-parse', title: 'AI Structure Analysis', status: 'pending', progress: 0 },
-    { id: 'validate', title: 'Validate Content', status: 'pending', progress: 0 },
-    { id: 'save', title: 'Save Resume', status: 'pending', progress: 0 }
+    { 
+      id: 'upload', 
+      title: 'Upload Resume', 
+      description: 'File uploaded successfully',
+      status: 'pending', 
+      progress: 0,
+      estimatedTime: '< 1s'
+    },
+    { 
+      id: 'validate-pages', 
+      title: 'Validate Page Count', 
+      description: 'Ensuring single-page format',
+      status: 'pending', 
+      progress: 0,
+      estimatedTime: '< 1s'
+    },
+    { 
+      id: 'ocr', 
+      title: 'Extract Text', 
+      description: 'Reading content from your resume',
+      status: 'pending', 
+      progress: 0,
+      estimatedTime: '2-3s'
+    },
+    { 
+      id: 'ai-prepare', 
+      title: 'Preparing AI Analysis', 
+      description: 'Setting up intelligent processing',
+      status: 'pending', 
+      progress: 0,
+      estimatedTime: '< 1s'
+    },
+    { 
+      id: 'ai-parse', 
+      title: 'AI Structure Analysis', 
+      description: 'Analyzing and organizing your content',
+      status: 'pending', 
+      progress: 0,
+      estimatedTime: '5-8s'
+    },
+    { 
+      id: 'validate', 
+      title: 'Validate Content', 
+      description: 'Ensuring all sections are complete',
+      status: 'pending', 
+      progress: 0,
+      estimatedTime: '< 1s'
+    },
+    { 
+      id: 'save', 
+      title: 'Save Resume', 
+      description: 'Storing your processed resume',
+      status: 'pending', 
+      progress: 0,
+      estimatedTime: '1-2s'
+    }
   ])
 
   const { user } = useAuth()
@@ -61,10 +114,10 @@ export function ResumeProcessor({ onProcessingComplete }: ResumeProcessorProps) 
       // Ensure user profile exists before processing
       await ensureUserExists(user)
       
-      // Step 1: OCR Processing
-      updateStep('ocr', 'processing', 0)
+      // Step 1: Page Validation
+      updateStep('validate-pages', 'processing', 0)
       
-      // Get the uploaded file for OCR processing
+      // Get the uploaded file for validation and processing
       const { StorageService } = await import('@/lib/supabase/storage')
       const fileUrl = await StorageService.getResumeFileUrl(filePath)
       
@@ -72,15 +125,33 @@ export function ResumeProcessor({ onProcessingComplete }: ResumeProcessorProps) 
       const blob = await response.blob()
       const file = new File([blob], fileName, { type: blob.type })
 
+      // Validate page count (this will throw an error if multi-page)
+      await OCRProcessor.validatePageCount(file)
+      updateStep('validate-pages', 'completed', 100)
+
+      // Step 2: OCR Processing
+      updateStep('ocr', 'processing', 0)
       const ocrResult = await OCRProcessor.processFile(file)
       updateStep('ocr', 'completed', 100)
 
-      // Step 2: AI Structure Analysis
+      // Step 3: Preparing AI Analysis
+      updateStep('ai-prepare', 'processing', 0)
+      // Brief pause to show preparation step
+      await new Promise(resolve => setTimeout(resolve, 500))
+      updateStep('ai-prepare', 'completed', 100)
+
+      // Step 4: AI Structure Analysis with Progress Tracking
       updateStep('ai-parse', 'processing', 0)
-      const parsedContent = await parseResumeStructure(ocrResult.text)
+      
+      // Create progress callback for AI parsing
+      const progressCallback = (progress: number) => {
+        updateStep('ai-parse', 'processing', progress)
+      }
+      
+      const parsedContent = await parseResumeStructure(ocrResult.text, progressCallback)
       updateStep('ai-parse', 'completed', 100)
 
-      // Step 3: Validate Content
+      // Step 5: Validate Content
       updateStep('validate', 'processing', 0)
       // Basic validation - ensure required fields exist
       if (!parsedContent.contact || !parsedContent.experience) {
@@ -89,7 +160,7 @@ export function ResumeProcessor({ onProcessingComplete }: ResumeProcessorProps) 
       setExtractedContent(parsedContent)
       updateStep('validate', 'completed', 100)
 
-      // Step 4: Save to Database
+      // Step 6: Save to Database
       updateStep('save', 'processing', 0)
       const resumeTitle = parsedContent.contact.name 
         ? `${parsedContent.contact.name}'s Resume`
@@ -164,11 +235,62 @@ export function ResumeProcessor({ onProcessingComplete }: ResumeProcessorProps) 
     setExtractedContent(null)
     setError(null)
     setSteps([
-      { id: 'upload', title: 'Upload Resume', status: 'pending', progress: 0 },
-      { id: 'ocr', title: 'Extract Text', status: 'pending', progress: 0 },
-      { id: 'ai-parse', title: 'AI Structure Analysis', status: 'pending', progress: 0 },
-      { id: 'validate', title: 'Validate Content', status: 'pending', progress: 0 },
-      { id: 'save', title: 'Save Resume', status: 'pending', progress: 0 }
+      { 
+        id: 'upload', 
+        title: 'Upload Resume', 
+        description: 'File uploaded successfully',
+        status: 'pending', 
+        progress: 0,
+        estimatedTime: '< 1s'
+      },
+      { 
+        id: 'validate-pages', 
+        title: 'Validate Page Count', 
+        description: 'Ensuring single-page format',
+        status: 'pending', 
+        progress: 0,
+        estimatedTime: '< 1s'
+      },
+      { 
+        id: 'ocr', 
+        title: 'Extract Text', 
+        description: 'Reading content from your resume',
+        status: 'pending', 
+        progress: 0,
+        estimatedTime: '2-3s'
+      },
+      { 
+        id: 'ai-prepare', 
+        title: 'Preparing AI Analysis', 
+        description: 'Setting up intelligent processing',
+        status: 'pending', 
+        progress: 0,
+        estimatedTime: '< 1s'
+      },
+      { 
+        id: 'ai-parse', 
+        title: 'AI Structure Analysis', 
+        description: 'Analyzing and organizing your content',
+        status: 'pending', 
+        progress: 0,
+        estimatedTime: '5-8s'
+      },
+      { 
+        id: 'validate', 
+        title: 'Validate Content', 
+        description: 'Ensuring all sections are complete',
+        status: 'pending', 
+        progress: 0,
+        estimatedTime: '< 1s'
+      },
+      { 
+        id: 'save', 
+        title: 'Save Resume', 
+        description: 'Storing your processed resume',
+        status: 'pending', 
+        progress: 0,
+        estimatedTime: '1-2s'
+      }
     ])
   }
 
@@ -211,15 +333,25 @@ export function ResumeProcessor({ onProcessingComplete }: ResumeProcessorProps) 
                 {getStepIcon(step)}
                 <div className="flex-1">
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium">{step.title}</span>
-                    <span className="text-xs text-muted-foreground">
-                      {step.status === 'completed' ? 'Done' : 
-                       step.status === 'processing' ? 'Processing...' :
-                       step.status === 'error' ? 'Failed' : 'Pending'}
-                    </span>
+                    <div>
+                      <span className="text-sm font-medium">{step.title}</span>
+                      {step.description && (
+                        <p className="text-xs text-muted-foreground">{step.description}</p>
+                      )}
+                    </div>
+                    <div className="text-right">
+                      <span className="text-xs text-muted-foreground">
+                        {step.status === 'completed' ? '✓ Done' : 
+                         step.status === 'processing' ? 'Processing...' :
+                         step.status === 'error' ? '✗ Failed' : 'Pending'}
+                      </span>
+                      {step.estimatedTime && step.status === 'processing' && (
+                        <p className="text-xs text-muted-foreground">{step.estimatedTime}</p>
+                      )}
+                    </div>
                   </div>
                   {step.status === 'processing' && (
-                    <Progress value={step.progress} className="mt-1" />
+                    <Progress value={step.progress} className="mt-2" />
                   )}
                 </div>
               </div>

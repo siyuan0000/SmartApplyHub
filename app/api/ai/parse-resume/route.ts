@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { OpenAIService } from "@/lib/ai/openai";
+import { ResumeParserService } from "@/lib/ai/resume-parser";
 
 export async function POST(request: NextRequest) {
   try {
@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
 
     // Parse with OpenAI
     try {
-      const structuredContent = await OpenAIService.parseResumeStructure(
+      const structuredContent = await ResumeParserService.parseResumeStructure(
         rawText
       );
 

@@ -5,7 +5,7 @@ import { useDropzone } from 'react-dropzone'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
-import { Upload, FileText, AlertCircle, CheckCircle } from 'lucide-react'
+import { Upload, FileText, AlertCircle, CheckCircle, Info } from 'lucide-react'
 import { StorageService } from '@/lib/supabase/storage'
 import { useAuth } from '@/hooks/useAuth'
 
@@ -94,14 +94,29 @@ export function ResumeUpload({ onUploadComplete, onUploadError }: ResumeUploadPr
               <input {...getInputProps()} />
               <Upload className="h-12 w-12 text-muted-foreground mb-4 mx-auto" />
               <h3 className="text-lg font-medium mb-2">Upload Your Resume</h3>
-              <p className="text-sm text-muted-foreground mb-4">
+              <p className="text-sm text-muted-foreground mb-6">
                 {isDragActive ? 'Drop your resume here' : 'Drag and drop your resume file or click to browse'}
               </p>
-              <div className="flex gap-2 justify-center">
+              
+              {/* Professional 1-page requirement notice */}
+              <div className="flex items-start gap-3 bg-slate-50 border border-slate-200 rounded-lg p-4 mb-6 max-w-lg mx-auto">
+                <Info className="h-5 w-5 text-slate-600 mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="text-sm font-medium text-slate-800 mb-1">
+                    Single-page resumes only
+                  </p>
+                  <p className="text-xs text-slate-600 leading-relaxed">
+                    We process one-page resumes for optimal ATS compatibility and faster processing. 
+                    Multi-page documents will be rejected during validation.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-2 justify-center mb-4">
                 <Button>Browse Files</Button>
                 <Button variant="outline">Import from LinkedIn</Button>
               </div>
-              <p className="text-xs text-muted-foreground mt-2">
+              <p className="text-xs text-muted-foreground">
                 Supports PDF, DOC, DOCX files up to 10MB
               </p>
             </div>

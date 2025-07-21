@@ -42,6 +42,14 @@ export interface Database {
           title: string
           content: Json
           file_url: string | null
+          language: 'en' | 'zh' | 'auto'
+          detected_language: 'en' | 'zh' | null
+          original_headers: Json | null
+          job_roles: string[]
+          industries: string[]
+          optimization_tags: Json
+          target_roles: string[]
+          applied_to: string[]
           version: number
           is_active: boolean
           created_at: string
@@ -53,6 +61,14 @@ export interface Database {
           title: string
           content: Json
           file_url?: string | null
+          language?: 'en' | 'zh' | 'auto'
+          detected_language?: 'en' | 'zh' | null
+          original_headers?: Json | null
+          job_roles?: string[]
+          industries?: string[]
+          optimization_tags?: Json
+          target_roles?: string[]
+          applied_to?: string[]
           version?: number
           is_active?: boolean
           created_at?: string
@@ -64,6 +80,14 @@ export interface Database {
           title?: string
           content?: Json
           file_url?: string | null
+          language?: 'en' | 'zh' | 'auto'
+          detected_language?: 'en' | 'zh' | null
+          original_headers?: Json | null
+          job_roles?: string[]
+          industries?: string[]
+          optimization_tags?: Json
+          target_roles?: string[]
+          applied_to?: string[]
           version?: number
           is_active?: boolean
           created_at?: string

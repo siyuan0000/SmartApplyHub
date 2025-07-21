@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 import { useResumeEditor } from '@/hooks/useResumeEditor'
 import { Skeleton } from '@/components/ui/skeleton'
 import { PreviewHeader } from './preview/PreviewHeader'
@@ -9,12 +9,16 @@ import { PreviewExperience } from './preview/PreviewExperience'
 import { PreviewEducation } from './preview/PreviewEducation'
 import { PreviewSkills } from './preview/PreviewSkills'
 import { PreviewProjects } from './preview/PreviewProjects'
+import { TemplateService, TemplateContext, ResumeLanguage } from '@/lib/templates'
 
 interface ResumePreviewProps {
   resumeId: string
+  templateId?: string
+  detectedLanguage?: 'en' | 'zh'
+  originalHeaders?: Record<string, string>
 }
 
-export function ResumePreview({ resumeId }: ResumePreviewProps) {
+export function ResumePreview({ resumeId, templateId, detectedLanguage, originalHeaders }: ResumePreviewProps) {
   const { content, loading, loadResume } = useResumeEditor()
 
   useEffect(() => {
@@ -22,6 +26,25 @@ export function ResumePreview({ resumeId }: ResumePreviewProps) {
       loadResume(resumeId)
     }
   }, [resumeId, loadResume])
+
+  // Get template context based on resume language and original headers
+  const templateContext = useMemo((): TemplateContext | null => {
+    if (!content) return null
+
+    const resolvedLanguage = (detectedLanguage || content.detected_language || 'en') as ResumeLanguage
+    const resolvedHeaders = originalHeaders || content.original_headers || {}
+    
+    // Use provided template ID or get recommended template based on language
+    const selectedTemplateId = templateId || TemplateService.getRecommendedTemplate(resolvedLanguage).id
+    
+    return TemplateService.getTemplateContext(selectedTemplateId, resolvedLanguage, resolvedHeaders)
+  }, [content, templateId, detectedLanguage, originalHeaders])
+
+  // Generate template CSS
+  const templateCSS = useMemo(() => {
+    if (!templateContext) return ''
+    return TemplateService.generateTemplateCSS(templateContext.template)
+  }, [templateContext])
 
   if (loading) {
     return (
@@ -34,7 +57,7 @@ export function ResumePreview({ resumeId }: ResumePreviewProps) {
     )
   }
 
-  if (!content) {
+  if (!content || !templateContext) {
     return (
       <div className="text-center py-12">
         <p className="text-muted-foreground">Resume not found</p>
@@ -42,107 +65,81 @@ export function ResumePreview({ resumeId }: ResumePreviewProps) {
     )
   }
 
-  // Define section order - can be easily reordered in the future
-  const SECTION_ORDER = [
-    'header',
-    'summary', 
-    'education',
-    'experience',
-    'projects',
-    'skills'
-  ] as const
+  // Get dynamic section order based on template
+  const getSectionOrder = () => {
+    const order = templateContext.template.sectionOrder
+    return Object.entries(order)
+      .sort(([, aOrder], [, bOrder]) => aOrder - bOrder)
+      .map(([section]) => section)
+      .filter(section => ['contact', 'summary', 'education', 'experience', 'projects', 'skills'].includes(section))
+  }
 
-  // Section rendering functions
-  const renderSection = (sectionType: typeof SECTION_ORDER[number]) => {
+  // Section rendering functions with template context
+  const renderSection = (sectionType: string) => {
+    const sectionDisplayName = TemplateService.getSectionDisplayName(sectionType, templateContext)
+    
     switch (sectionType) {
-      case 'header':
-        return <PreviewHeader key="header" contact={content.contact} />
+      case 'contact':
+        return (
+          <PreviewHeader 
+            key="contact" 
+            contact={content.contact}
+          />
+        )
       case 'summary':
-        return <PreviewSummary key="summary" summary={content.summary} />
+        return content.summary ? (
+          <section key="summary">
+            <h2 className="section-header">{sectionDisplayName}</h2>
+            <PreviewSummary summary={content.summary} />
+          </section>
+        ) : null
       case 'education':
-        return <PreviewEducation key="education" education={content.education} />
+        return content.education && content.education.length > 0 ? (
+          <section key="education">
+            <h2 className="section-header">{sectionDisplayName}</h2>
+            <PreviewEducation education={content.education} />
+          </section>
+        ) : null
       case 'experience':
-        return <PreviewExperience key="experience" experience={content.experience} />
+        return content.experience && content.experience.length > 0 ? (
+          <section key="experience">
+            <h2 className="section-header">{sectionDisplayName}</h2>
+            <PreviewExperience experience={content.experience} />
+          </section>
+        ) : null
       case 'projects':
-        return <PreviewProjects key="projects" projects={content.projects} />
+        return content.projects && content.projects.length > 0 ? (
+          <section key="projects">
+            <h2 className="section-header">{sectionDisplayName}</h2>
+            <PreviewProjects projects={content.projects} />
+          </section>
+        ) : null
       case 'skills':
-        return <PreviewSkills key="skills" skills={content.skills} />
+        return content.skills && content.skills.length > 0 ? (
+          <section key="skills">
+            <h2 className="section-header">{sectionDisplayName}</h2>
+            <PreviewSkills skills={content.skills} />
+          </section>
+        ) : null
       default:
         return null
     }
   }
 
+  const sectionOrder = getSectionOrder()
+
   return (
-    <div className="resume-preview bg-white">
+    <div className={`resume-preview bg-white resume-template-${templateContext.template.id}`}>
       <div className="w-full">
         {/* Print-friendly container */}
         <div className="bg-white shadow-sm min-h-full p-4 print:p-6 print:shadow-none print:min-h-0">
-          {SECTION_ORDER.map(renderSection)}
+          {sectionOrder.map(renderSection).filter(Boolean)}
         </div>
       </div>
       
-      {/* Enhanced print and professional styling */}
+      {/* Dynamic template styling */}
       <style jsx>{`
-        /* General resume styling improvements */
-        .resume-preview {
-          font-family: 'Georgia', 'Times New Roman', serif;
-          line-height: 1.4;
-          font-size: 0.9rem;
-        }
-        
-        .resume-preview h1 {
-          font-family: 'Arial', 'Helvetica', sans-serif;
-          letter-spacing: 0.5px;
-        }
-        
-        .resume-preview h2 {
-          font-family: 'Arial', 'Helvetica', sans-serif;
-          color: #2c3e50;
-        }
-        
-        .resume-preview h3 {
-          font-family: 'Arial', 'Helvetica', sans-serif;
-        }
-        
-        /* Professional spacing */
-        .resume-preview section {
-          margin-bottom: 1.25rem;
-        }
-        
-        .resume-preview .border-l-2 {
-          padding-left: 0.75rem;
-          margin-bottom: 1rem;
-        }
-        
-        /* Enhanced typography */
-        .resume-preview p {
-          text-align: justify;
-          hyphens: auto;
-        }
-        
-        .resume-preview ul {
-          margin-left: 0.5rem;
-        }
-        
-        .resume-preview li {
-          margin-bottom: 0.25rem;
-        }
-        
-        /* Professional color scheme */
-        .resume-preview .border-blue-200 {
-          border-left-color: #3b82f6;
-          border-left-width: 3px;
-        }
-        
-        .resume-preview .border-green-200 {
-          border-left-color: #10b981;
-          border-left-width: 3px;
-        }
-        
-        .resume-preview .border-purple-200 {
-          border-left-color: #8b5cf6;
-          border-left-width: 3px;
-        }
+        ${templateCSS}
         
         @media print {
           /* Reset all margins and backgrounds for clean printing */

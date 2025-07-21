@@ -13,7 +13,8 @@ import { ResumeService } from '@/lib/resume/service'
 import { useAuth } from '@/hooks/useAuth'
 import { ensureUserExists } from '@/lib/supabase/user'
 import { Database } from '@/types/database.types'
-import { FileText, Edit, Download, Eye, Plus, Star, Trash2 } from 'lucide-react'
+import { FileText, Edit, Download, Plus, Star, Trash2, Pencil } from 'lucide-react'
+import { TagGroup } from '@/components/ui/resume-tag'
 
 type ResumeRow = Database['public']['Tables']['resumes']['Row']
 
@@ -24,6 +25,8 @@ export default function Resumes() {
   const [setupError, setSetupError] = useState<string | null>(null)
   const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; resume: ResumeRow | null }>({ open: false, resume: null })
   const [deleting, setDeleting] = useState(false)
+  const [editingTitle, setEditingTitle] = useState<string | null>(null)
+  const [tempTitle, setTempTitle] = useState('')
   const { user } = useAuth()
 
   const loadResumes = useCallback(async () => {
@@ -77,6 +80,30 @@ export default function Resumes() {
 
   const handleDeleteCancel = () => {
     setDeleteDialog({ open: false, resume: null })
+  }
+
+  const handleTitleEdit = (resume: ResumeRow) => {
+    setEditingTitle(resume.id)
+    setTempTitle(resume.title)
+  }
+
+  const handleTitleSave = async (resumeId: string) => {
+    if (!tempTitle.trim()) return
+    
+    try {
+      await ResumeService.updateResume(resumeId, { title: tempTitle.trim() })
+      await loadResumes()
+      setEditingTitle(null)
+      setTempTitle('')
+    } catch (error) {
+      console.error('Failed to update title:', error)
+      alert('Failed to update resume title')
+    }
+  }
+
+  const handleTitleCancel = () => {
+    setEditingTitle(null)
+    setTempTitle('')
   }
 
   const getRelativeTime = (dateString: string): string => {
@@ -165,89 +192,114 @@ export default function Resumes() {
         ) : (
           <div className="grid-responsive">
             {resumes.map((resume) => (
-              <Card key={resume.id} className="group hover:shadow-lg transition-shadow flex flex-col">
-                <CardHeader className="pb-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-center gap-2 min-w-0 flex-1">
-                      <FileText className="h-5 w-5 text-blue-600 shrink-0" />
+              <Card key={resume.id} className="group hover:shadow-lg transition-all duration-200 border border-slate-200 hover:border-slate-300">
+                <CardHeader className="pb-4 border-b border-slate-100">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                      <div className="p-2 bg-blue-50 rounded-lg">
+                        <FileText className="h-5 w-5 text-blue-600" />
+                      </div>
                       <div className="min-w-0 flex-1">
-                        <CardTitle className="text-base sm:text-lg truncate leading-tight" title={resume.title}>
-                          {resume.title}
-                        </CardTitle>
-                        <CardDescription className="flex items-center gap-2 mt-1">
-                          Version {resume.version}
-                        </CardDescription>
+                        {editingTitle === resume.id ? (
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="text"
+                              value={tempTitle}
+                              onChange={(e) => setTempTitle(e.target.value)}
+                              className="text-lg font-semibold bg-transparent border-b border-blue-500 focus:outline-none flex-1"
+                              autoFocus
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') handleTitleSave(resume.id)
+                                if (e.key === 'Escape') handleTitleCancel()
+                              }}
+                              onBlur={() => handleTitleSave(resume.id)}
+                            />
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2 group/title">
+                            <h3 className="text-lg font-semibold text-slate-900 leading-tight">
+                              {resume.title}
+                            </h3>
+                            <button
+                              onClick={() => handleTitleEdit(resume)}
+                              className="opacity-0 group-hover/title:opacity-100 p-1 hover:bg-slate-100 rounded transition-all"
+                              title="Rename resume"
+                            >
+                              <Pencil className="h-3 w-3 text-slate-500" />
+                            </button>
+                          </div>
+                        )}
+                        <div className="flex items-center gap-3 mt-1">
+                          <span className="text-sm text-slate-500">Version {resume.version}</span>
+                          <span className="text-sm text-slate-400">•</span>
+                          <span className="text-sm text-slate-500">
+                            {getRelativeTime(resume.updated_at)}
+                          </span>
+                        </div>
                       </div>
                     </div>
                     {resume.is_active && (
-                      <Badge variant="default" className="gap-1 shrink-0">
-                        <Star className="h-3 w-3" />
+                      <Badge variant="default" className="gap-1.5 bg-emerald-100 text-emerald-700 hover:bg-emerald-100 border-emerald-200">
+                        <Star className="h-3 w-3 fill-current" />
                         Active
                       </Badge>
                     )}
                   </div>
                 </CardHeader>
-                <CardContent className="space-y-4 flex-1 flex flex-col">
-                  {/* AI Score Placeholder */}
-                  <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
-                    <span className="text-sm font-medium">AI Optimization Score</span>
-                    <div className="flex items-center gap-2">
-                      <div className="w-16 h-2 bg-secondary rounded-full overflow-hidden">
-                        <div 
-                          className="h-full bg-gradient-to-r from-destructive via-yellow-500 to-green-600 rounded-full"
-                          style={{ width: '75%' }}
-                        />
-                      </div>
-                      <span className="text-sm font-bold">75%</span>
-                    </div>
+                
+                <CardContent className="pt-4 space-y-4">
+                  {/* Tag Groups */}
+                  <div className="space-y-3">
+                    <TagGroup 
+                      title="Optimized for"
+                      tags={resume.job_roles || ['Software Engineer', 'Full Stack Developer']}
+                      type="job-role"
+                      maxDisplay={2}
+                    />
+                    <TagGroup 
+                      title="Industries"
+                      tags={resume.industries || ['Technology', 'Startups']}
+                      type="industry"
+                      maxDisplay={2}
+                    />
+                    {resume.applied_to && resume.applied_to.length > 0 && (
+                      <TagGroup 
+                        title="Applied to"
+                        tags={resume.applied_to}
+                        type="status"
+                        maxDisplay={2}
+                      />
+                    )}
                   </div>
 
-                  {/* Last Updated */}
-                  <p className="text-sm text-muted-foreground">
-                    Last updated {getRelativeTime(resume.updated_at)}
-                  </p>
-
                   {/* Actions */}
-                  <div className="flex flex-col gap-2 mt-auto">
-                    <div className="grid grid-cols-2 gap-2">
+                  <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+                    <Button 
+                      size="sm" 
+                      className="gap-2 bg-blue-600 hover:bg-blue-700"
+                      onClick={() => window.location.href = `/resumes/${resume.id}`}
+                    >
+                      <Edit className="h-4 w-4" />
+                      View & Edit
+                    </Button>
+                    
+                    <div className="flex items-center gap-1">
                       <Button 
                         size="sm" 
-                        variant="outline" 
-                        className="gap-1 min-w-0"
-                        onClick={() => window.open(`/resumes/${resume.id}`, '_blank')}
-                      >
-                        <Eye className="h-4 w-4 shrink-0" />
-                        <span className="hidden sm:inline truncate">View</span>
-                      </Button>
-                      <Button 
-                        size="sm" 
-                        variant="outline" 
-                        className="gap-1 min-w-0"
-                        onClick={() => window.location.href = `/resumes/${resume.id}`}
-                      >
-                        <Edit className="h-4 w-4 shrink-0" />
-                        <span className="hidden sm:inline truncate">Edit</span>
-                      </Button>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <Button 
-                        size="sm" 
-                        variant="outline" 
-                        className="gap-1 min-w-0"
+                        variant="ghost" 
+                        className="h-8 w-8 p-0 text-slate-500 hover:text-slate-700 hover:bg-slate-100"
                         title="Download Resume"
                       >
-                        <Download className="h-4 w-4 shrink-0" />
-                        <span className="hidden sm:inline truncate">Download</span>
+                        <Download className="h-4 w-4" />
                       </Button>
                       <Button 
                         size="sm" 
-                        variant="outline" 
-                        className="gap-1 min-w-0"
+                        variant="ghost" 
+                        className="h-8 w-8 p-0 text-slate-500 hover:text-red-600 hover:bg-red-50"
                         onClick={() => handleDeleteClick(resume)}
                         title="Delete Resume"
                       >
-                        <Trash2 className="h-4 w-4 shrink-0" />
-                        <span className="hidden sm:inline truncate">Delete</span>
+                        <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
                   </div>

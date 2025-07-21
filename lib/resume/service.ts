@@ -13,6 +13,9 @@ export interface CreateResumeData {
   content: ResumeContent
   file_url?: string
   user_id: string
+  language?: 'en' | 'zh' | 'auto'
+  detected_language?: 'en' | 'zh'
+  original_headers?: Record<string, string>
 }
 
 export interface UpdateResumeData {
@@ -21,6 +24,9 @@ export interface UpdateResumeData {
   file_url?: string
   version?: number
   is_active?: boolean
+  language?: 'en' | 'zh' | 'auto'
+  detected_language?: 'en' | 'zh'
+  original_headers?: Record<string, string>
 }
 
 export class ResumeService {
@@ -34,6 +40,9 @@ export class ResumeService {
       content: data.content as unknown as Database['public']['Tables']['resumes']['Insert']['content'],
       file_url: data.file_url,
       user_id: data.user_id,
+      language: data.language || 'auto',
+      detected_language: data.detected_language,
+      original_headers: data.original_headers as unknown as Database['public']['Tables']['resumes']['Insert']['original_headers'],
       version: 1,
       is_active: false
     }
@@ -182,6 +191,9 @@ export class ResumeService {
       content: originalResume.content,
       file_url: originalResume.file_url,
       user_id: originalResume.user_id,
+      language: originalResume.language,
+      detected_language: originalResume.detected_language,
+      original_headers: originalResume.original_headers,
       version: 1,
       is_active: false
     }

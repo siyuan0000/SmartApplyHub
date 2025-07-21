@@ -8,6 +8,24 @@ export class ResumeParserService extends BaseOpenAIService {
 CRITICAL: You are reformatting resume information ONLY. Do NOT enhance, improve, or change any content. 
 Preserve all original information exactly as provided.
 
+LANGUAGE DETECTION:
+- Analyze the resume text to determine if it's primarily in English ("en") or Chinese ("zh")
+- Look for Chinese characters, English characters, and overall language patterns
+- Return "en" for English resumes, "zh" for Chinese resumes
+
+SECTION HEADER PRESERVATION:
+- Identify all section headers in their original language and format
+- Map them to standard section types while preserving the original text
+- Examples: "工作经历" → "experience", "实习经历" → "experience", "Work Experience" → "experience"
+- Store the original header text for each section type
+
+FLEXIBLE SECTION MAPPING:
+- "experience": Map ANY work-related sections like "工作经历", "实习经历", "Work Experience", "Employment", "Professional Experience"
+- "education": Map education sections like "教育背景", "Education", "Academic Background"  
+- "skills": Map skills sections like "技能", "Skills", "Technical Skills", "Core Competencies"
+- "projects": Map project sections like "项目经验", "Projects", "Portfolio"
+- "summary": Map summary sections like "个人简介", "Summary", "Objective", "Profile"
+
 BULLET POINT HANDLING:
 - Experience: Use "description" for brief role overview, "achievements" array for bullet points
 - Projects: Use "description" for overview, "details" array for bullet points  
@@ -58,10 +76,18 @@ Return JSON matching this EXACT structure:
       "url": "exact url if provided"
     }
   ],
-  "raw_text": append the inpt raw_text here.
+  "detected_language": "en or zh based on analysis",
+  "original_headers": {
+    "experience": "original header text for work experience section",
+    "education": "original header text for education section", 
+    "skills": "original header text for skills section",
+    "projects": "original header text for projects section",
+    "summary": "original header text for summary section"
+  },
+  "raw_text": "append the input raw_text here"
 }
 
-Do not enhance content - only restructure existing information.`;
+Do not enhance content - only restructure existing information and detect language/headers.`;
 
     const messages = [
       {
