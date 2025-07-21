@@ -156,6 +156,9 @@ CREATE POLICY "Users can update own templates" ON public.application_templates
 CREATE POLICY "Users can delete own templates" ON public.application_templates
     FOR DELETE USING (auth.uid() = user_id);
 
+-- Enable RLS on job_postings and make them public
+ALTER TABLE public.job_postings ENABLE ROW LEVEL SECURITY;
+
 -- Job postings are public (everyone can read)
 CREATE POLICY "Job postings are public" ON public.job_postings
     FOR SELECT USING (true);
