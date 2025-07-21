@@ -1,0 +1,82 @@
+{
+    "contact": {
+      "name": "Siyuan LIU",
+      "phone": ["+852 56335719", "+86 13121569352"],
+      "email": ["siyuan00.liu@connect.polyu.hk", "phos04@gmail.com"],
+      "linkedin": null,
+      "github": [
+        "https://github.com/Reallm-Labs",
+        "https://github.com/Reallm-Labs/Reallm-Med-Eval"
+      ],
+      "location": "Hong Kong, Beijing, San Francisco"
+    },
+    "education": [
+      {
+        "school": "The Hong Kong Polytechnic University",
+        "degree": "BSc in Computing and AI",
+        "startDate": "09/2023",
+        "endDate": "06/2027"
+      },
+      {
+        "school": "Stanford University",
+        "degree": "Summer School Program in Computer Science",
+        "startDate": "06/2025",
+        "endDate": "08/2025"
+      }
+    ],
+    "publications": [
+      {
+        "title": "Infi-Med: Low-Resource Medical MLLMs with Robust Reasoning Evaluation",
+        "venue": "arXiv (under review at NeurIPS 2025)",
+        "date": "05/2025",
+        "authors": ["Zeyu Liu", "...", "Siyuan Liu", "...", "Hongxia Yang"]
+      },
+      {
+        "title": "Enhancing Suicide Risk Detection with MDF-FOF",
+        "venue": "IEEE Big Data 2024",
+        "date": "06/2024",
+        "authors": ["Zheng Shouwen", "...", "Liu Siyuan"]
+      }
+    ],
+    "research": [
+      {
+        "position": "Research Assistant",
+        "lab": "ReaLLM-Labs 2, PolyU",
+        "professor": "Prof. Hongxia Yang",
+        "project": "ReaLLM-Med-Eval 2",
+        "date": "01/2025 – Present"
+      },
+      {
+        "position": "Undergraduate Researcher",
+        "lab": "RAIDS Lab, PolyU",
+        "professor": "Prof. Zheng Pai",
+        "project": "LEGOBench",
+        "date": "07/2024 – Present"
+      },
+      {
+        "position": "Research Intern",
+        "lab": "Tsinghua NLP Lab",
+        "professor": "Prof. Han Xu",
+        "project": "Xiaoda 2",
+        "date": "06/2024 – 08/2024"
+      },
+      {
+        "position": "Research Assistant",
+        "lab": "HTI Lab, PolyU",
+        "professor": "Prof. Jing Cai",
+        "project": "Cervical-Cancer Radiotherapy",
+        "date": "09/2023 – 12/2023"
+      }
+    ],
+    "awards": [
+      "IEEE BigData 2024 Cup - 1st place",
+      "Talent Development Scholarship - HK$10,000",
+      "Most Outstanding Academic Achievement Award 2024, 2025"
+    ],
+    "skills": {
+      "languages": ["C++", "Python", "R", "Java"],
+      "software": ["cursor", "Pycharm", "VS Code", "IntelliJ IDEA"]
+    },
+    "raw_text": "...原始提取文本..."
+  }
+  
