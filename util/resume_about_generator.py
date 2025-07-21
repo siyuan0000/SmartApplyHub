@@ -30,7 +30,7 @@ class ResumeAboutGenerator:
     使用Qwen2.5-1.5B-Instruct模型生成LinkedIn风格的about介绍
     """
     
-    def __init__(self, model_path: str = "./models/Qwen2.5-1.5B-Instruct"):
+    def __init__(self, model_path: str = "../models/Qwen2.5-1.5B-Instruct"):
         """
         初始化生成器
         
@@ -50,20 +50,12 @@ class ResumeAboutGenerator:
         try:
             logger.info("正在加载模型和分词器...")
             
-            # 尝试加载分词器
-            try:
-                self.tokenizer = AutoTokenizer.from_pretrained(
-                    self.model_path,
-                    trust_remote_code=True
-                )
-                logger.info("分词器加载成功")
-            except Exception as e:
-                logger.warning(f"本地分词器加载失败: {e}")
-                logger.info("尝试从HuggingFace下载分词器...")
-                self.tokenizer = AutoTokenizer.from_pretrained(
-                    "Qwen/Qwen2.5-1.5B-Instruct",
-                    trust_remote_code=True
-                )
+            # 直接使用HuggingFace分词器（本地分词器文件损坏）
+            logger.info("使用HuggingFace分词器...")
+            self.tokenizer = AutoTokenizer.from_pretrained(
+                "Qwen/Qwen2.5-1.5B-Instruct",
+                trust_remote_code=True
+            )
             
             # 尝试加载模型
             try:
@@ -72,7 +64,8 @@ class ResumeAboutGenerator:
                     torch_dtype=torch.float16 if self.device == "cuda" else torch.float32,
                     device_map="auto" if self.device == "cuda" else None,
                     trust_remote_code=True,
-                    low_cpu_mem_usage=True
+                    low_cpu_mem_usage=True,
+                    offload_folder="offload"  # 添加模型卸载文件夹
                 )
                 logger.info("本地模型加载成功")
             except Exception as e:
