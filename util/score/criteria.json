@@ -1,0 +1,105 @@
+{
+    "grading_scale": {
+      "A+": "97-100",
+      "A": "93-96",
+      "A-": "90-92",
+      "B+": "87-89",
+      "B": "83-86",
+      "B-": "80-82",
+      "C+": "77-79",
+      "C": "73-76",
+      "C-": "70-72",
+      "F": "<70"
+    },
+    "Overall Grade": {
+      "description": "Evaluate overall quality, clarity, and professionalism of the resume. Final output should be a grade (A+, A, ..., C-).",
+      "sub_criteria": [
+        {
+          "name": "Content Completeness",
+          "description": "Includes all core sections: education, experience, projects, skills, honors.",
+          "weight": 10
+        },
+        {
+          "name": "Clarity of Expression",
+          "description": "Clear writing, logical flow, and well-structured sections.",
+          "weight": 10
+        },
+        {
+          "name": "Formatting Quality",
+          "description": "Consistent layout, fonts, spacing, bullet points.",
+          "weight": 10
+        },
+        {
+          "name": "Professional Tone",
+          "description": "Language is professional and avoids vague/colloquial terms.",
+          "weight": 10
+        },
+        {
+          "name": "Position Relevance",
+          "description": "Resume shows clear adaptation to a target role or domain.",
+          "weight": 10
+        }
+      ]
+    },
+    "Vertical Consistency Grade": {
+      "description": "Evaluate how consistently the resume aligns with a clear career path or domain. Final output should be a grade (A+, A, ..., C-).",
+      "sub_criteria": [
+        {
+          "name": "Education-Experience Alignment",
+          "description": "Academic background and practical experience are in the same domain.",
+          "weight": 10
+        },
+        {
+          "name": "Skill-Project Match",
+          "description": "Project content reflects and reinforces listed skills.",
+          "weight": 10
+        },
+        {
+          "name": "Award Relevance",
+          "description": "Honors and awards are related to the target field.",
+          "weight": 10
+        },
+        {
+          "name": "Keyword Consistency",
+          "description": "Key domain-related terms appear repeatedly and coherently.",
+          "weight": 10
+        },
+        {
+          "name": "Career Trajectory Coherence",
+          "description": "A clear professional development trajectory is visible.",
+          "weight": 10
+        }
+      ]
+    },
+    "Completeness Grade": {
+      "description": "Evaluate whether the resume includes sufficient detail in each section. Final output should be a grade (A+, A, ..., C-).",
+      "sub_criteria": [
+        {
+          "name": "Date Presence",
+          "description": "Each experience includes a start and end date.",
+          "weight": 5
+        },
+        {
+          "name": "Role Clarity",
+          "description": "Descriptions explain what the candidate did in their role.",
+          "weight": 5
+        },
+        {
+          "name": "Quantified Results",
+          "description": "Achievements are measurable or outcome-driven (e.g., 'reduced error by 20%').",
+          "weight": 5
+        },
+        {
+          "name": "STAR Structure",
+          "description": "Descriptions include Situation, Task, Action, Result elements.",
+          "weight": 5
+        },
+        {
+          "name": "Detail Coverage",
+          "description": "All sections are detailed without major gaps or placeholders.",
+          "weight": 10
+        }
+      ]
+    }
+  }
+  

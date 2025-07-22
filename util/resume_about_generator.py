@@ -1,296 +1,413 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-简历About生成器 - ResumeAboutGenerator
+Resume About Generator - ResumeAboutGenerator
 
-使用Qwen2.5-1.5B-Instruct模型处理简历JSON文件，生成LinkedIn风格的about介绍。
+Process resume JSON files and generate LinkedIn-style about introductions.
 
-快速使用:
+Quick usage:
     from util.resume_about_generator import ResumeAboutGenerator
     generator = ResumeAboutGenerator()
     about_text = generator.process_resume_file("resume.json")
 
-依赖: torch, transformers, accelerate, sentencepiece, protobuf
+Note: The actual model implementation is managed by ModelRouter in __init__.py
 """
 
 import json
-import torch
-from transformers import AutoTokenizer, AutoModelForCausalLM
 import logging
 from typing import Dict, Any, Optional
 import os
+from datetime import datetime
+from pathlib import Path
 
-# 配置日志
+# Load environment variables from .env.local file
+def load_env_file():
+    """Load environment variables from .env.local file"""
+    env_file = Path(__file__).parent.parent / ".env.local"
+    if env_file.exists():
+        try:
+            with open(env_file, 'r', encoding='utf-8') as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith('#') and '=' in line:
+                        key, value = line.split('=', 1)
+                        # Remove quotes if present
+                        value = value.strip('"\'')
+                        os.environ[key.strip()] = value.strip()
+            print(f"✓ Loaded environment variables from {env_file}")
+        except Exception as e:
+            print(f"Warning: Failed to load .env.local file: {e}")
+
+# Load environment variables at module import
+load_env_file()
+
+# Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
+# Try to import DeepSeek API support
+try:
+    from openai import OpenAI
+    OPENAI_AVAILABLE = True
+except ImportError:
+    OPENAI_AVAILABLE = False
+
+# Simple DeepSeek API wrapper
+class SimpleDeepSeekGenerator:
+    """Simple DeepSeek API wrapper for about generation"""
+    
+    def __init__(self):
+        if not OPENAI_AVAILABLE:
+            raise ImportError("OpenAI package required")
+        
+        api_key = os.getenv("DEEPSEEK_API_KEY")
+        if not api_key:
+            raise ValueError("DEEPSEEK_API_KEY not found")
+        
+        self.client = OpenAI(api_key=api_key, base_url="https://api.deepseek.com")
+        self.model = "deepseek-chat"
+    
+    def generate_about(self, resume_data):
+        """Generate about text using DeepSeek API"""
+        # Extract resume info
+        info_parts = []
+        contact = resume_data.get('contact', {})
+        if contact.get('name'):
+            info_parts.append(f"Name: {contact['name']}")
+        
+        education = resume_data.get('education', [])
+        if education:
+            edu = education[0]
+            degree = edu.get('degree', '')
+            school = edu.get('school', '')
+            if degree and school:
+                info_parts.append(f"Education: {degree} at {school}")
+        
+        research = resume_data.get('research', [])
+        if research:
+            res = research[0]
+            position = res.get('position', '')
+            lab = res.get('lab', '')
+            if position and lab:
+                info_parts.append(f"Position: {position} at {lab}")
+        
+        skills = resume_data.get('skills', {})
+        if skills.get('languages'):
+            info_parts.append(f"Skills: {', '.join(skills['languages'][:5])}")
+        
+        resume_info = "\n".join(info_parts)
+        
+        # Create prompt
+        system_prompt = (
+            "You are a professional LinkedIn about text generator. Create a compelling, "
+            "professional LinkedIn about section (100-150 words) that will attract "
+            "recruiters and networking opportunities. Use first person perspective, "
+            "be professional but engaging, highlight key achievements and expertise."
+        )
+        
+        user_prompt = f"Generate LinkedIn about text from:\n{resume_info}"
+        
+        # Call API
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt}
+                ],
+                max_tokens=200,
+                temperature=0.7
+            )
+            return response.choices[0].message.content.strip()
+        except Exception as e:
+            logger.error(f"DeepSeek API call failed: {e}")
+            return f"LinkedIn About generation failed: {e}"
+
+# Try to initialize DeepSeek support
+DEEPSEEK_AVAILABLE = False
+try:
+    if OPENAI_AVAILABLE and os.getenv("DEEPSEEK_API_KEY"):
+        DEEPSEEK_AVAILABLE = True
+        logger.info("DeepSeek API support available")
+    else:
+        logger.warning("DeepSeek API not available - missing API key or OpenAI package")
+except Exception as e:
+    logger.warning(f"DeepSeek setup failed: {e}")
+
 class ResumeAboutGenerator:
     """
-    简历About生成器类
-    使用Qwen2.5-1.5B-Instruct模型生成LinkedIn风格的about介绍
+    Resume About Generator class
+    Generates LinkedIn-style about introductions
     """
     
-    def __init__(self, model_path: str = "../models/Qwen2.5-1.5B-Instruct"):
+    def __init__(self, model_path: str = None):
         """
-        初始化生成器
+        Initialize the generator
         
         Args:
-            model_path: 模型路径，默认为本地Qwen2.5-1.5B-Instruct模型
+            model_path: Model path, managed by ModelRouter
         """
         self.model_path = model_path
-        self.tokenizer = None
-        self.model = None
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
         
-        logger.info(f"使用设备: {self.device}")
-        self._load_model()
-    
-    def _load_model(self):
-        """加载模型和分词器"""
-        try:
-            logger.info("正在加载模型和分词器...")
-            
-            # 直接使用HuggingFace分词器（本地分词器文件损坏）
-            logger.info("使用HuggingFace分词器...")
-            self.tokenizer = AutoTokenizer.from_pretrained(
-                "Qwen/Qwen2.5-1.5B-Instruct",
-                trust_remote_code=True
-            )
-            
-            # 尝试加载模型
+        # Try to initialize DeepSeek generator
+        self.deepseek_generator = None
+        if DEEPSEEK_AVAILABLE:
             try:
-                self.model = AutoModelForCausalLM.from_pretrained(
-                    self.model_path,
-                    torch_dtype=torch.float16 if self.device == "cuda" else torch.float32,
-                    device_map="auto" if self.device == "cuda" else None,
-                    trust_remote_code=True,
-                    low_cpu_mem_usage=True,
-                    offload_folder="offload"  # 添加模型卸载文件夹
-                )
-                logger.info("本地模型加载成功")
+                self.deepseek_generator = SimpleDeepSeekGenerator()
+                logger.info("DeepSeek about generator initialized successfully")
             except Exception as e:
-                logger.warning(f"本地模型加载失败: {e}")
-                logger.info("尝试从HuggingFace下载模型...")
-                self.model = AutoModelForCausalLM.from_pretrained(
-                    "Qwen/Qwen2.5-1.5B-Instruct",
-                    torch_dtype=torch.float16 if self.device == "cuda" else torch.float32,
-                    device_map="auto" if self.device == "cuda" else None,
-                    trust_remote_code=True,
-                    low_cpu_mem_usage=True
-                )
-            
-            logger.info("模型加载完成")
-            
-        except Exception as e:
-            logger.error(f"模型加载失败: {e}")
-            raise
+                logger.warning(f"Failed to initialize DeepSeek generator: {e}")
+        
+        # Ensure about folder exists
+        self.about_folder = "about"
+        self._ensure_about_folder()
+        
+        logger.info("ResumeAboutGenerator initialization completed")
+    
+    def _ensure_about_folder(self):
+        """Ensure about folder exists"""
+        if not os.path.exists(self.about_folder):
+            os.makedirs(self.about_folder)
+            logger.info(f"Created about folder: {self.about_folder}")
     
     def _extract_resume_info(self, resume_data: Dict[str, Any]) -> str:
         """
-        从简历JSON中提取关键信息
+        Extract key information from resume JSON
         
         Args:
-            resume_data: 简历JSON数据
+            resume_data: Resume JSON data
             
         Returns:
-            格式化的简历信息字符串
+            Formatted resume information string
         """
         info_parts = []
         
-        # 提取基本信息
+        # Extract basic information
         contact = resume_data.get('contact', {})
         if contact:
             name = contact.get('name', '')
             location = contact.get('location', '')
             if name:
-                info_parts.append(f"姓名: {name}")
+                info_parts.append(f"Name: {name}")
             if location:
-                info_parts.append(f"位置: {location}")
+                info_parts.append(f"Location: {location}")
         
-        # 提取教育背景
+        # Extract education background
         education = resume_data.get('education', [])
         if education:
-            latest_edu = education[0]  # 假设按时间倒序排列
+            latest_edu = education[0]  # Assume sorted by time in reverse order
             school = latest_edu.get('school', '')
             degree = latest_edu.get('degree', '')
             if school and degree:
-                info_parts.append(f"教育: {degree} at {school}")
+                info_parts.append(f"Education: {degree} at {school}")
         
-        # 提取研究经历
+        # Extract research experience
         research = resume_data.get('research', [])
         if research:
-            current_research = research[0]  # 当前研究
+            current_research = research[0]  # Current research
             position = current_research.get('position', '')
             lab = current_research.get('lab', '')
             project = current_research.get('project', '')
             if position and lab:
-                info_parts.append(f"当前职位: {position} at {lab}")
+                info_parts.append(f"Current Position: {position} at {lab}")
             if project:
-                info_parts.append(f"项目: {project}")
+                info_parts.append(f"Project: {project}")
         
-        # 提取技能
+        # Extract skills
         skills = resume_data.get('skills', {})
         if skills:
             languages = skills.get('languages', [])
             if languages:
-                info_parts.append(f"编程语言: {', '.join(languages)}")
+                info_parts.append(f"Programming Languages: {', '.join(languages)}")
+            
+            software = skills.get('software', [])
+            if software:
+                info_parts.append(f"Software Tools: {', '.join(software)}")
         
-        # 提取奖项
+        # Extract awards
         awards = resume_data.get('awards', [])
         if awards:
-            # 选择最重要的奖项
-            important_awards = awards[:2]  # 取前两个奖项
-            info_parts.append(f"奖项: {'; '.join(important_awards)}")
+            info_parts.append(f"Awards: {'; '.join(awards)}")
         
-        # 提取发表论文
+        # Extract publications
         publications = resume_data.get('publications', [])
         if publications:
-            latest_pub = publications[0]
-            title = latest_pub.get('title', '')
-            if title:
-                # 截取标题的前50个字符
-                short_title = title[:50] + "..." if len(title) > 50 else title
-                info_parts.append(f"最新论文: {short_title}")
+            info_parts.append(f"Publications: {len(publications)} papers published")
         
         return "\n".join(info_parts)
     
     def _create_prompt(self, resume_info: str) -> str:
         """
-        创建用于生成about的提示词
+        Create prompt for generating about text
         
         Args:
-            resume_info: 简历信息字符串
+            resume_info: Resume information string
             
         Returns:
-            格式化的提示词
+            Formatted prompt
         """
         prompt = f"""<|im_start|>system
-你是一个专业的LinkedIn个人介绍撰写专家。请根据以下简历信息，生成一个简洁、专业、有吸引力的LinkedIn about介绍。
+You are a professional LinkedIn about text generator. Please generate a concise, professional LinkedIn about introduction (100-150 words) based on the following resume information.
 
-要求：
-1. 长度控制在100-150字左右
-2. 突出个人专业能力和成就
-3. 使用LinkedIn风格的专业语言
-4. 包含个人定位、专业领域、关键成就
-5. 语言要简洁有力，避免冗长
-6. 适合LinkedIn平台展示
+Requirements:
+1. Professional and LinkedIn-appropriate tone
+2. Highlight key achievements and skills
+3. Focus on career goals and expertise
+4. Keep it concise (100-150 words)
+5. Use first person perspective
+6. Make it engaging and professional
 
-简历信息：
+Resume information:
 {resume_info}
 
-请生成LinkedIn风格的about介绍：<|im_end|>
+LinkedIn About: <|im_end|>
 <|im_start|>assistant
 """
+        
         return prompt
     
     def generate_about(self, resume_data: Dict[str, Any]) -> str:
         """
-        生成LinkedIn风格的about介绍
+        Generate LinkedIn-style about text from resume data
         
         Args:
-            resume_data: 简历JSON数据
+            resume_data: Resume JSON data
             
         Returns:
-            生成的about介绍文本
+            Generated about text
         """
         try:
-            # 提取简历信息
+            # Use DeepSeek generator if available
+            if self.deepseek_generator:
+                logger.info("Using DeepSeek API for about generation")
+                return self.deepseek_generator.generate_about(resume_data)
+            
+            # Fallback to prompt generation for compatibility
+            logger.warning("DeepSeek API not available, returning prompt only")
+            
+            # Extract resume information
             resume_info = self._extract_resume_info(resume_data)
-            logger.info("简历信息提取完成")
+            logger.info("Resume information extraction completed")
             
-            # 创建提示词
+            # Create prompt
             prompt = self._create_prompt(resume_info)
-            logger.info("提示词创建完成")
+            logger.info("About generation prompt prepared")
             
-            # 编码输入
-            inputs = self.tokenizer(prompt, return_tensors="pt").to(self.device)
-            
-            # 生成文本
-            logger.info("开始生成about介绍...")
-            with torch.no_grad():
-                outputs = self.model.generate(
-                    **inputs,
-                    max_new_tokens=200,  # 最大生成200个新token
-                    temperature=0.7,     # 控制创造性
-                    top_p=0.9,          # 核采样
-                    do_sample=True,
-                    pad_token_id=self.tokenizer.eos_token_id
-                )
-            
-            # 解码输出
-            generated_text = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
-            
-            # 提取生成的about部分
-            about_start = generated_text.find("请生成LinkedIn风格的about介绍：")
-            if about_start != -1:
-                about_text = generated_text[about_start + len("请生成LinkedIn风格的about介绍："):].strip()
-            else:
-                about_text = generated_text.strip()
-            
-            # 清理输出文本，去掉assistant前缀
-            if about_text.startswith("assistant"):
-                about_text = about_text[9:].strip()
-            
-            logger.info("about介绍生成完成")
-            return about_text
+            return prompt
             
         except Exception as e:
-            logger.error(f"生成about介绍时出错: {e}")
+            logger.error(f"Error generating about text: {e}")
             raise
     
-    def process_resume_file(self, file_path: str) -> str:
+    def save_about_to_file(self, about_text: str, filename: str = None, person_name: str = None) -> str:
         """
-        处理简历JSON文件并生成about介绍
+        Save about text to file
         
         Args:
-            file_path: 简历JSON文件路径
+            about_text: Generated about text
+            filename: Output filename, auto-generated if None
+            person_name: Person's name for filename
             
         Returns:
-            生成的about介绍文本
+            Saved file path
         """
         try:
-            # 读取JSON文件
+            # Generate filename if not provided
+            if filename is None:
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                if person_name:
+                    # Clean person name for filename
+                    clean_name = person_name.replace(" ", "_").replace(",", "").replace(".", "")
+                    filename = f"{clean_name}_about_{timestamp}.txt"
+                else:
+                    filename = f"about_{timestamp}.txt"
+            
+            # Ensure filename has .txt extension
+            if not filename.endswith('.txt'):
+                filename += '.txt'
+            
+            # Full file path
+            file_path = os.path.join(self.about_folder, filename)
+            
+            # Write to file
+            with open(file_path, 'w', encoding='utf-8') as f:
+                f.write(about_text)
+            
+            logger.info(f"About text saved to: {file_path}")
+            return file_path
+            
+        except Exception as e:
+            logger.error(f"Error saving about text: {e}")
+            raise
+    
+    def process_resume_file(self, file_path: str, save_to_file: bool = True, output_filename: str = None) -> str:
+        """
+        Process resume JSON file and generate about text
+        
+        Args:
+            file_path: Resume JSON file path
+            save_to_file: Whether to save to file, default True
+            output_filename: Output filename, auto-generated if None
+            
+        Returns:
+            Generated about text
+        """
+        try:
+            # Read JSON file
             with open(file_path, 'r', encoding='utf-8') as f:
                 resume_data = json.load(f)
             
-            logger.info(f"成功读取简历文件: {file_path}")
+            logger.info(f"Successfully read resume file: {file_path}")
             
-            # 生成about介绍
+            # Extract person name for filename
+            contact = resume_data.get('contact', {})
+            person_name = contact.get('name', '') if contact else None
+            
+            # Generate about text
             about_text = self.generate_about(resume_data)
+            
+            # Save to file if requested
+            if save_to_file:
+                self.save_about_to_file(about_text, output_filename, person_name)
+            
             return about_text
             
         except FileNotFoundError:
-            logger.error(f"文件未找到: {file_path}")
+            logger.error(f"File not found: {file_path}")
             raise
         except json.JSONDecodeError:
-            logger.error(f"JSON文件格式错误: {file_path}")
+            logger.error(f"JSON file format error: {file_path}")
             raise
         except Exception as e:
-            logger.error(f"处理文件时出错: {e}")
+            logger.error(f"Error processing file: {e}")
             raise
 
 def main():
-    """主函数，演示如何使用ResumeAboutGenerator"""
+    """Main function, demonstrates how to use ResumeAboutGenerator"""
     
-    # 初始化生成器
+    # Initialize generator
     generator = ResumeAboutGenerator()
     
-    # 处理示例简历文件
-    resume_file = "sample/lsy_resume.json"
+    # Process example resume file
+    resume_file = "../sample/lsy_resume.json"
     
     if os.path.exists(resume_file):
         try:
+            # Generate about text
             about_text = generator.process_resume_file(resume_file)
+            
+            # Output results
             print("\n" + "="*50)
-            print("生成的LinkedIn About介绍:")
+            print("Generated LinkedIn About:")
             print("="*50)
             print(about_text)
             print("="*50)
+            
         except Exception as e:
-            print(f"处理失败: {e}")
+            print(f"Generation failed: {e}")
     else:
-        print(f"简历文件不存在: {resume_file}")
-        print("请确保sample/lsy_resume.json文件存在")
+        print(f"Resume file does not exist: {resume_file}")
+        print("Please ensure sample/lsy_resume.json file exists")
 
 if __name__ == "__main__":
     main() 

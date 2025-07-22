@@ -1,0 +1,7 @@
+**About**  
+
+I'm a passionate AI researcher and computing professional with a strong foundation in machine learning, data science, and software development. Currently, I work as a Research Assistant at **ReaLLM-Labs 2, PolyU**, where I contribute to cutting-edge projects like **ReaLLM-Med-Eval 2**, focusing on low-resource medical multimodal language models. My research has led to publications, including *"Infi-Med: Low-Resource Medical MLLMs with Robust Reasoning Evaluation"* (under review at NeurIPS 2025).  
+
+With a **BSc in Computing and AI** from The Hong Kong Polytechnic University, I bring expertise in **Python, C++, R, and Java**, along with hands-on experience in AI model development and evaluation. My achievements include **1st place in the IEEE BigData 2024 Cup**, the **Talent Development Scholarship**, and multiple academic excellence awards.  
+
+I thrive on solving complex problems at the intersection
