@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { EmailGeneratorService } from "@/lib/ai/email-generator";
-import { getAuthenticatedUserAndClientWithResponse } from "@/lib/supabase/api-utils";
+// import { getAuthenticatedUserAndClientWithResponse } from "@/lib/supabase/api-utils";
 import { ResumeContent } from "@/lib/resume/parser";
 
 interface GenerateEmailRequest {

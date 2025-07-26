@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -10,7 +10,6 @@ import {
   Star, 
   Calendar,
   ChevronRight,
-  User,
   Mail,
   Phone,
   MapPin
@@ -96,86 +95,82 @@ export function ResumeSelectionStep() {
           </p>
         </div>
         
-        <Card className="border-green-200 bg-green-50">
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
+        <div className="max-w-md mx-auto">
+          <Card className="border-green-200 bg-green-50 h-64 overflow-hidden">
+            <CardContent className="p-0 h-full flex flex-col">
+              <div className="p-4 h-full flex flex-col overflow-hidden">
+              {/* Header with icon and action button */}
+              <div className="flex items-start justify-between mb-3">
                 <div className="p-2 bg-green-100 rounded-lg">
                   <FileText className="h-5 w-5 text-green-600" />
                 </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-foreground">
-                    {selectedResume.title}
-                  </h3>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => setSelectedResume(null)}
+                  className="text-xs"
+                >
+                  Change
+                </Button>
+              </div>
+              
+              {/* Title and active badge */}
+              <div className="mb-2 min-w-0">
+                <h3 className="font-semibold text-foreground text-sm leading-tight mb-1 truncate">
+                  {selectedResume.title}
+                </h3>
+                <div className="flex items-center gap-2 min-w-0">
                   {selectedResume.is_active && (
-                    <Badge variant="outline" className="text-xs mt-1">
+                    <Badge variant="outline" className="text-xs py-0 px-2 h-5 bg-green-100 border-green-300 flex-shrink-0">
                       <Star className="h-3 w-3 mr-1" />
-                      Active Resume
+                      Active
                     </Badge>
                   )}
                 </div>
               </div>
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={() => setSelectedResume(null)}
-              >
-                Change Resume
-              </Button>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid md:grid-cols-2 gap-4">
-              <div>
-                <h4 className="font-medium text-sm text-muted-foreground mb-2">Contact Info</h4>
+              
+              {/* Contact info */}
+              <div className="mb-3 flex-1 min-w-0 overflow-hidden">
+                <div className="text-xs text-muted-foreground mb-1">Contact</div>
                 <div className="space-y-1">
-                  {preview.contact.name && (
-                    <div className="flex items-center gap-2 text-sm">
-                      <User className="h-3 w-3 text-muted-foreground" />
-                      {preview.contact.name}
-                    </div>
-                  )}
+                  <div className="font-medium text-sm truncate">
+                    {preview.contact.name || 'Name not set'}
+                  </div>
                   {preview.contact.email && (
-                    <div className="flex items-center gap-2 text-sm">
-                      <Mail className="h-3 w-3 text-muted-foreground" />
-                      {preview.contact.email}
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground min-w-0">
+                      <Mail className="h-3 w-3 flex-shrink-0" />
+                      <span className="truncate">{preview.contact.email}</span>
                     </div>
                   )}
                   {preview.contact.phone && (
-                    <div className="flex items-center gap-2 text-sm">
-                      <Phone className="h-3 w-3 text-muted-foreground" />
-                      {preview.contact.phone}
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground min-w-0">
+                      <Phone className="h-3 w-3 flex-shrink-0" />
+                      <span className="truncate">{preview.contact.phone}</span>
                     </div>
                   )}
                   {preview.contact.location && (
-                    <div className="flex items-center gap-2 text-sm">
-                      <MapPin className="h-3 w-3 text-muted-foreground" />
-                      {preview.contact.location}
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground min-w-0">
+                      <MapPin className="h-3 w-3 flex-shrink-0" />
+                      <span className="truncate">{preview.contact.location}</span>
                     </div>
                   )}
                 </div>
               </div>
               
-              <div>
-                <h4 className="font-medium text-sm text-muted-foreground mb-2">Resume Summary</h4>
-                <div className="space-y-2 text-sm">
-                  <div>
-                    <span className="text-muted-foreground">Recent Role:</span>
-                    <div className="font-medium">{preview.recentJob}</div>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">Education:</span>
-                    <div className="font-medium">{preview.education}</div>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">Skills:</span>
-                    <div className="font-medium">{preview.skillsCount} skills listed</div>
+              {/* Summary at bottom */}
+              <div className="mt-auto pt-2 border-t border-green-200 min-w-0">
+                <div className="text-xs text-muted-foreground mb-1">Summary</div>
+                <div className="text-xs">
+                  <div className="font-medium mb-1 truncate">{preview.skillsCount} skills</div>
+                  <div className="text-muted-foreground line-clamp-2 break-words">
+                    {preview.recentJob}
                   </div>
                 </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     )
   }
@@ -208,26 +203,26 @@ export function ResumeSelectionStep() {
       )}
 
       {/* Resumes List */}
-      <div className="space-y-4">
+      <div className="grid-responsive">
         {loading ? (
           // Loading skeletons
-          Array.from({ length: 2 }).map((_, i) => (
-            <Card key={i}>
-              <CardContent className="p-4">
-                <div className="flex items-start space-x-4">
+          Array.from({ length: 3 }).map((_, i) => (
+            <Card key={i} className="h-64">
+              <CardContent className="p-4 h-full">
+                <div className="flex flex-col items-center text-center space-y-3">
                   <Skeleton className="h-12 w-12 rounded-lg" />
-                  <div className="flex-1 space-y-2">
-                    <Skeleton className="h-5 w-3/4" />
-                    <Skeleton className="h-4 w-1/2" />
+                  <div className="space-y-2 w-full">
+                    <Skeleton className="h-5 w-3/4 mx-auto" />
+                    <Skeleton className="h-4 w-1/2 mx-auto" />
                     <Skeleton className="h-4 w-full" />
+                    <Skeleton className="h-4 w-2/3 mx-auto" />
                   </div>
-                  <Skeleton className="h-8 w-20" />
                 </div>
               </CardContent>
             </Card>
           ))
         ) : resumes.length === 0 ? (
-          <div className="text-center py-12">
+          <div className="col-span-full text-center py-12">
             <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
             <div className="text-muted-foreground mb-2">No resumes found</div>
             <p className="text-sm text-muted-foreground mb-4">
@@ -244,60 +239,82 @@ export function ResumeSelectionStep() {
             return (
               <Card 
                 key={resume.id} 
-                className="cursor-pointer hover:shadow-md transition-shadow"
+                className="cursor-pointer hover:shadow-md transition-shadow h-64 relative group overflow-hidden"
                 onClick={() => handleSelectResume(resume)}
               >
-                <CardContent className="p-4">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-start space-x-4 flex-1">
-                      <div className="p-3 bg-blue-50 rounded-lg flex-shrink-0">
-                        <FileText className="h-6 w-6 text-blue-600" />
-                      </div>
-                      
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <h3 className="font-semibold text-foreground">
-                            {resume.title}
-                          </h3>
-                          {resume.is_active && (
-                            <Badge variant="outline" className="text-xs">
-                              <Star className="h-3 w-3 mr-1" />
-                              Active
-                            </Badge>
-                          )}
-                        </div>
-                        
-                        <div className="flex items-center gap-2 mb-3 text-xs text-muted-foreground">
-                          <Calendar className="h-3 w-3" />
-                          Last updated {formatDate(resume.updated_at)}
-                        </div>
-                        
-                        <div className="grid md:grid-cols-2 gap-4 text-sm">
-                          <div>
-                            <div className="text-muted-foreground">Contact</div>
-                            <div className="font-medium">
-                              {preview.contact.name || 'Name not set'}
-                            </div>
-                            {preview.contact.email && (
-                              <div className="text-muted-foreground text-xs">
-                                {preview.contact.email}
-                              </div>
-                            )}
-                          </div>
-                          
-                          <div>
-                            <div className="text-muted-foreground">Summary</div>
-                            <div className="font-medium text-xs">
-                              {preview.skillsCount} skills • Recent: {preview.recentJob.length > 40 ? preview.recentJob.substring(0, 40) + '...' : preview.recentJob}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
+                <CardContent className="p-0 h-full flex flex-col">
+                  <div className="p-4 h-full flex flex-col overflow-hidden">
+                  {/* Header with icon and action button */}
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="p-2 bg-blue-50 rounded-lg">
+                      <FileText className="h-5 w-5 text-blue-600" />
                     </div>
-                    
-                    <Button variant="ghost" size="sm" className="ml-4 flex-shrink-0">
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="opacity-0 group-hover:opacity-100 transition-opacity p-1"
+                    >
                       <ChevronRight className="h-4 w-4" />
                     </Button>
+                  </div>
+                  
+                  {/* Title and active badge */}
+                  <div className="mb-2 min-w-0">
+                    <h3 className="font-semibold text-foreground text-sm leading-tight mb-1 truncate">
+                      {resume.title}
+                    </h3>
+                    <div className="flex items-center gap-2 min-w-0">
+                      {resume.is_active && (
+                        <Badge variant="outline" className="text-xs py-0 px-2 h-5 flex-shrink-0">
+                          <Star className="h-3 w-3 mr-1" />
+                          Active
+                        </Badge>
+                      )}
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground min-w-0">
+                        <Calendar className="h-3 w-3 flex-shrink-0" />
+                        <span className="truncate">{formatDate(resume.updated_at)}</span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Contact info */}
+                  <div className="mb-3 flex-1 min-w-0 overflow-hidden">
+                    <div className="text-xs text-muted-foreground mb-1">Contact</div>
+                    <div className="space-y-1">
+                      <div className="font-medium text-sm truncate">
+                        {preview.contact.name || 'Name not set'}
+                      </div>
+                      {preview.contact.email && (
+                        <div className="flex items-center gap-1 text-xs text-muted-foreground min-w-0">
+                          <Mail className="h-3 w-3 flex-shrink-0" />
+                          <span className="truncate">{preview.contact.email}</span>
+                        </div>
+                      )}
+                      {preview.contact.phone && (
+                        <div className="flex items-center gap-1 text-xs text-muted-foreground min-w-0">
+                          <Phone className="h-3 w-3 flex-shrink-0" />
+                          <span className="truncate">{preview.contact.phone}</span>
+                        </div>
+                      )}
+                      {preview.contact.location && (
+                        <div className="flex items-center gap-1 text-xs text-muted-foreground min-w-0">
+                          <MapPin className="h-3 w-3 flex-shrink-0" />
+                          <span className="truncate">{preview.contact.location}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {/* Summary at bottom */}
+                  <div className="mt-auto pt-2 border-t border-gray-100 min-w-0">
+                    <div className="text-xs text-muted-foreground mb-1">Summary</div>
+                    <div className="text-xs">
+                      <div className="font-medium mb-1 truncate">{preview.skillsCount} skills</div>
+                      <div className="text-muted-foreground line-clamp-2 break-words">
+                        {preview.recentJob}
+                      </div>
+                    </div>
+                  </div>
                   </div>
                 </CardContent>
               </Card>

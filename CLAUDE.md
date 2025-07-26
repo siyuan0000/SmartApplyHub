@@ -74,6 +74,7 @@ This is a Next.js 15 app using App Router with a focus on AI-powered resume opti
 - `job_applications` - Application tracking with status workflow
 - `ai_reviews` - AI analysis results and feedback
 - `application_templates` - Cover letter templates
+- `job_postings` - Public job listings (read-only access)
 
 **Important Relationships:**
 - Users own multiple resumes (one active at a time)
@@ -153,18 +154,28 @@ interface ResumeContent {
 - `/app/resumes/page.tsx` - Resume management dashboard
 - `/app/resumes/[id]/page.tsx` - Individual resume editor
 - `/app/dashboard/page.tsx` - Main application dashboard
+- `/app/jobs/page.tsx` - Job search and listings
+- `/app/applications/page.tsx` - Application tracking
+- `/app/ai-review/page.tsx` - AI-powered resume analysis
+- `/app/templates/page.tsx` - Cover letter templates
+- `/app/settings/page.tsx` - User settings
 
 **Key Components:**
 - `ResumeEditor` - Section-based editing with navigation
 - `ResumeUpload` - File upload with validation
 - `ResumeProcessor` - Upload orchestration
 - `ResumeList` - Resume management with actions
+- `ApplicationWorkflowModal` - Multi-step application process
+- `JobCard` - Job listing display with actions
 
 ### AI Integration Points
 
 **Current AI Features:**
 - Resume structure analysis and parsing using OpenAI API
 - Intelligent content extraction from uploaded files
+- ATS compatibility analysis
+- Content enhancement for resume sections
+- Keyword suggestions for job optimization
 - Custom AI hooks (`useAI`) for reusable AI functionality
 
 **AI Service Architecture (lib/ai/):**
@@ -174,6 +185,7 @@ interface ResumeContent {
 - `ats-analyzer.ts` - Checks ATS compatibility
 - `content-enhancer.ts` - Enhances resume content sections
 - `keyword-suggester.ts` - Suggests relevant keywords for jobs
+- `email-generator.ts` - Generates personalized email content
 - `openai.ts` - OpenAI client configuration
 
 **Implementation Pattern:**
@@ -210,25 +222,40 @@ interface ResumeContent {
 ```
 smart_apply/
 ├── app/                     # Next.js App Router pages
-│   ├── (auth)/             # Authentication pages (login/signup)
+│   ├── (auth)/             # Authentication pages (login)
 │   ├── dashboard/          # Main dashboard
 │   ├── resumes/            # Resume management and editing
 │   ├── jobs/               # Job search and listings
 │   ├── applications/       # Application tracking
 │   ├── ai-review/          # AI-powered resume analysis
 │   ├── templates/          # Cover letter templates
-│   └── settings/           # User settings
+│   ├── settings/           # User settings
+│   └── api/                # API routes
+│       ├── ai/             # AI service endpoints
+│       ├── applications/   # Application CRUD
+│       ├── jobs/           # Job data endpoints
+│       ├── resumes/        # Resume CRUD
+│       └── user/           # User profile endpoints
 ├── components/             # Reusable components
 │   ├── ui/                 # Shadcn/UI components
-│   ├── layout/             # Layout components (Header, Footer)
+│   ├── layout/             # Layout components (Header, Sidebar)
+│   ├── resumes/            # Resume-specific components
+│   ├── applications/       # Application workflow components
+│   ├── jobs/               # Job search components
 │   └── providers/          # React context providers
 ├── lib/                    # Core utilities
 │   ├── ai/                 # AI service modules
 │   ├── supabase/           # Supabase client configuration
-│   └── utils/              # Helper functions
+│   ├── ocr/                # OCR processing
+│   ├── resume/             # Resume utilities
+│   ├── services/           # Business logic services
+│   ├── templates/          # Resume templates
+│   └── utils.ts            # Helper functions
 ├── hooks/                  # Custom React hooks
 ├── store/                  # Zustand state stores
 ├── types/                  # TypeScript type definitions
+├── scripts/                # Data import scripts
+├── util/                   # Python utilities for resume processing
 └── supabase/               # Database schema and migrations
 ```
 
@@ -257,3 +284,19 @@ smart_apply/
 - React Hook Form for complex forms
 - Zod schemas for validation
 - Server actions for form submissions where applicable
+
+### Job Import System
+
+The application includes a job import system with scripts:
+- `npm run import-jobs` - Imports job data from external sources
+- `npm run verify-import` - Verifies the integrity of imported job data
+- Job postings are stored in the `job_postings` table with public read access
+- Import scripts located in `scripts/` directory
+
+### Python Utilities
+
+The `util/` directory contains Python utilities for advanced resume processing:
+- `resume_about_generator.py` - Generates resume summaries
+- `resume_evaluator.py` - Evaluates resume quality
+- `resume_section_splitter.py` - Splits resumes into sections
+- These utilities complement the main Node.js application
