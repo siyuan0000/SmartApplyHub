@@ -39,4 +39,32 @@ export class BaseOpenAIService {
       throw new Error(`Request failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }
+
+  protected static async* makeStreamingRequest(
+    messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
+    maxTokens: number = 1500,
+    temperature: number = 0.7
+  ): AsyncGenerator<string, void, unknown> {
+    this.validateApiKey()
+
+    try {
+      const stream = await this.openai.chat.completions.create({
+        model: 'gpt-4',
+        messages,
+        max_tokens: maxTokens,
+        temperature,
+        stream: true
+      })
+
+      for await (const chunk of stream) {
+        const content = chunk.choices[0]?.delta?.content
+        if (content) {
+          yield content
+        }
+      }
+    } catch (error) {
+      console.error('OpenAI streaming request failed:', error)
+      throw new Error(`Streaming request failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
+  }
 } 

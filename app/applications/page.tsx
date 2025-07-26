@@ -2,67 +2,79 @@
 
 export const dynamic = 'force-dynamic'
 
+import { useState, useEffect, useCallback } from 'react'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Briefcase, Plus, Search, Filter, Eye, Edit, Trash2, Calendar, MapPin, Clock } from 'lucide-react'
+import { Skeleton } from '@/components/ui/skeleton'
+import { Briefcase, Plus, Search, Filter, Eye, Edit, Trash2, Calendar, MapPin, Clock, Loader2 } from 'lucide-react'
+import { ApplicationWorkflowModal } from '@/components/applications/ApplicationWorkflowModal'
+import { useApplicationWorkflowStore } from '@/store/application-workflow'
+import { Database } from '@/types/database.types'
+
+type JobApplication = Database['public']['Tables']['job_applications']['Row'] & {
+  job_postings?: Database['public']['Tables']['job_postings']['Row'] | null
+}
 
 export default function Applications() {
-  const mockApplications = [
-    {
-      id: 1,
-      company: 'TechCorp',
-      position: 'Senior Software Engineer',
-      location: 'San Francisco, CA',
-      status: 'interview',
-      appliedDate: '2024-01-15',
-      salary: '$120k - $150k',
-      notes: 'Technical interview scheduled for next week'
-    },
-    {
-      id: 2,
-      company: 'StartupXYZ',
-      position: 'Full Stack Developer',
-      location: 'Remote',
-      status: 'pending',
-      appliedDate: '2024-01-12',
-      salary: '$80k - $100k',
-      notes: 'Waiting for initial screening call'
-    },
-    {
-      id: 3,
-      company: 'BigTech Inc',
-      position: 'Frontend Developer',
-      location: 'New York, NY',
-      status: 'applied',
-      appliedDate: '2024-01-10',
-      salary: '$100k - $130k',
-      notes: 'Application submitted via company website'
-    },
-    {
-      id: 4,
-      company: 'Innovation Labs',
-      position: 'React Developer',
-      location: 'Austin, TX',
-      status: 'rejected',
-      appliedDate: '2024-01-08',
-      salary: '$90k - $120k',
-      notes: 'Not a good fit for the role'
-    },
-    {
-      id: 5,
-      company: 'Future Systems',
-      position: 'Software Engineer',
-      location: 'Seattle, WA',
-      status: 'offer',
-      appliedDate: '2024-01-05',
-      salary: '$110k - $140k',
-      notes: 'Offer received! Negotiating terms'
+  const [applications, setApplications] = useState<JobApplication[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [statusFilter, setStatusFilter] = useState<string>('all')
+  const [searchTerm, setSearchTerm] = useState('')
+  const { openWorkflow } = useApplicationWorkflowStore()
+
+  const fetchApplications = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    
+    try {
+      const params = new URLSearchParams()
+      if (statusFilter !== 'all') {
+        params.append('status', statusFilter)
+      }
+      
+      const response = await fetch(`/api/applications?${params}`)
+      if (!response.ok) {
+        throw new Error('Failed to fetch applications')
+      }
+      
+      const data = await response.json()
+      setApplications(data.applications || [])
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load applications')
+      setApplications([])
+    } finally {
+      setLoading(false)
     }
-  ]
+  }, [statusFilter])
+
+  useEffect(() => {
+    fetchApplications()
+  }, [fetchApplications])
+
+  const handleNewApplication = () => {
+    openWorkflow()
+  }
+
+  // Filter applications by search term
+  const filteredApplications = applications.filter(app => 
+    app.company_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    app.position_title.toLowerCase().includes(searchTerm.toLowerCase())
+  )
+
+  // Calculate stats
+  const stats = {
+    total: applications.length,
+    pending: applications.filter(app => app.status === 'pending').length,
+    applied: applications.filter(app => app.status === 'applied').length,
+    interview: applications.filter(app => app.status === 'interview').length,
+    offer: applications.filter(app => app.status === 'offer').length,
+    rejected: applications.filter(app => app.status === 'rejected').length
+  }
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -103,7 +115,7 @@ export default function Applications() {
               Track and manage your job applications
             </p>
           </div>
-          <Button className="gap-2">
+          <Button className="gap-2" onClick={handleNewApplication}>
             <Plus className="h-4 w-4" />
             New Application
           </Button>
@@ -116,7 +128,7 @@ export default function Applications() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium">Total</p>
-                  <p className="text-2xl font-bold">24</p>
+                  <p className="text-2xl font-bold">{loading ? '-' : stats.total}</p>
                 </div>
                 <Briefcase className="h-8 w-8 text-muted-foreground" />
               </div>
@@ -127,7 +139,7 @@ export default function Applications() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium">Pending</p>
-                  <p className="text-2xl font-bold text-yellow-600">8</p>
+                  <p className="text-2xl font-bold text-yellow-600">{loading ? '-' : stats.pending}</p>
                 </div>
                 <Clock className="h-8 w-8 text-yellow-600" />
               </div>
@@ -138,7 +150,7 @@ export default function Applications() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium">Interviews</p>
-                  <p className="text-2xl font-bold text-purple-600">5</p>
+                  <p className="text-2xl font-bold text-purple-600">{loading ? '-' : stats.interview}</p>
                 </div>
                 <Calendar className="h-8 w-8 text-purple-600" />
               </div>
@@ -149,7 +161,7 @@ export default function Applications() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium">Offers</p>
-                  <p className="text-2xl font-bold text-green-600">2</p>
+                  <p className="text-2xl font-bold text-green-600">{loading ? '-' : stats.offer}</p>
                 </div>
                 <Briefcase className="h-8 w-8 text-green-600" />
               </div>
@@ -160,7 +172,7 @@ export default function Applications() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium">Response Rate</p>
-                  <p className="text-2xl font-bold">18%</p>
+                  <p className="text-2xl font-bold">{loading ? '-' : stats.total > 0 ? Math.round((stats.interview + stats.offer) / stats.total * 100) + '%' : '0%'}</p>
                 </div>
                 <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
                   <span className="text-sm font-bold text-blue-600">%</span>
@@ -216,58 +228,158 @@ export default function Applications() {
           </CardContent>
         </Card>
 
+        {/* Search and Filters */}
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex flex-col md:flex-row gap-4">
+              <div className="flex-1">
+                <div className="relative">
+                  <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search applications..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-9"
+                  />
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="w-40">
+                    <SelectValue placeholder="Filter by Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Status</SelectItem>
+                    <SelectItem value="pending">Pending</SelectItem>
+                    <SelectItem value="applied">Applied</SelectItem>
+                    <SelectItem value="interview">Interview</SelectItem>
+                    <SelectItem value="offer">Offer</SelectItem>
+                    <SelectItem value="rejected">Rejected</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button variant="outline" onClick={fetchApplications} disabled={loading}>
+                  {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Filter className="h-4 w-4" />}
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Error State */}
+        {error && (
+          <Card className="border-red-200 bg-red-50">
+            <CardContent className="p-4">
+              <p className="text-red-600">{error}</p>
+              <Button variant="outline" size="sm" onClick={fetchApplications} className="mt-2">
+                Try Again
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Applications List */}
         <div className="space-y-4">
-          {mockApplications.map((app) => (
-            <Card key={app.id} className={`border-l-4 ${getStatusColor(app.status)}`}>
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-4 mb-3">
-                      <div className="w-12 h-12 bg-secondary rounded-lg flex items-center justify-center">
-                        <Briefcase className="h-6 w-6" />
+          {loading ? (
+            // Loading skeletons
+            Array.from({ length: 3 }).map((_, i) => (
+              <Card key={i}>
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-4 mb-3">
+                        <Skeleton className="w-12 h-12 rounded-lg" />
+                        <div className="space-y-2">
+                          <Skeleton className="h-5 w-48" />
+                          <Skeleton className="h-4 w-32" />
+                        </div>
                       </div>
-                      <div>
-                        <h3 className="text-lg font-semibold">{app.position}</h3>
-                        <p className="text-sm text-muted-foreground">{app.company}</p>
-                      </div>
-                      {getStatusBadge(app.status)}
-                    </div>
-                    
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                      <div className="flex items-center gap-2">
-                        <MapPin className="h-4 w-4 text-muted-foreground" />
-                        <span>{app.location}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Calendar className="h-4 w-4 text-muted-foreground" />
-                        <span>Applied {app.appliedDate}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-green-600 font-medium">{app.salary}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-muted-foreground">{app.notes}</span>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <Skeleton className="h-4 w-24" />
+                        <Skeleton className="h-4 w-32" />
+                        <Skeleton className="h-4 w-20" />
+                        <Skeleton className="h-4 w-40" />
                       </div>
                     </div>
                   </div>
-                  
-                  <div className="flex gap-2">
-                    <Button variant="outline" size="sm">
-                      <Eye className="h-4 w-4" />
-                    </Button>
-                    <Button variant="outline" size="sm">
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    <Button variant="outline" size="sm">
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
+                </CardContent>
+              </Card>
+            ))
+          ) : filteredApplications.length === 0 ? (
+            <Card>
+              <CardContent className="p-12 text-center">
+                <Briefcase className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-lg font-semibold mb-2">No Applications Found</h3>
+                <p className="text-muted-foreground mb-4">
+                  {applications.length === 0 
+                    ? "You haven't created any job applications yet."
+                    : "No applications match your search criteria."
+                  }
+                </p>
+                <Button onClick={handleNewApplication}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Create Your First Application
+                </Button>
               </CardContent>
             </Card>
-          ))}
+          ) : (
+            filteredApplications.map((app) => (
+              <Card key={app.id} className={`border-l-4 ${getStatusColor(app.status)}`}>
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-4 mb-3">
+                        <div className="w-12 h-12 bg-secondary rounded-lg flex items-center justify-center">
+                          <Briefcase className="h-6 w-6" />
+                        </div>
+                        <div>
+                          <h3 className="text-lg font-semibold">{app.position_title}</h3>
+                          <p className="text-sm text-muted-foreground">{app.company_name}</p>
+                        </div>
+                        {getStatusBadge(app.status)}
+                      </div>
+                      
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                        <div className="flex items-center gap-2">
+                          <MapPin className="h-4 w-4 text-muted-foreground" />
+                          <span>{app.job_postings?.location || 'Location not specified'}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Calendar className="h-4 w-4 text-muted-foreground" />
+                          <span>Applied {new Date(app.created_at).toLocaleDateString()}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-green-600 font-medium">
+                            {app.job_postings?.salary_range || 'Salary not specified'}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-muted-foreground">
+                            {app.notes?.substring(0, 50) || 'No notes'}
+                            {app.notes && app.notes.length > 50 ? '...' : ''}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="flex gap-2">
+                      <Button variant="outline" size="sm">
+                        <Eye className="h-4 w-4" />
+                      </Button>
+                      <Button variant="outline" size="sm">
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      <Button variant="outline" size="sm">
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))
+          )}
         </div>
+        
+        <ApplicationWorkflowModal />
       </div>
     </AppLayout>
   )

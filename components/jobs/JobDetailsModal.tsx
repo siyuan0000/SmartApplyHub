@@ -7,6 +7,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { VisuallyHidden } from '@/components/ui/visually-hidden'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { 
@@ -21,6 +22,9 @@ import {
   Mail,
   Heart
 } from 'lucide-react'
+import { ApplicationWorkflowModal } from '@/components/applications/ApplicationWorkflowModal'
+import { useApplicationWorkflowStore } from '@/store/application-workflow'
+import { Database } from '@/types/database.types'
 
 interface JobDetails {
   id: string
@@ -56,6 +60,7 @@ export function JobDetailsModal({ jobId, isOpen, onClose }: JobDetailsModalProps
   const [job, setJob] = useState<JobDetails | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const { openWorkflow } = useApplicationWorkflowStore()
   
   useEffect(() => {
     if (jobId && isOpen) {
@@ -123,6 +128,28 @@ export function JobDetailsModal({ jobId, isOpen, onClose }: JobDetailsModalProps
     const matches = description.match(emailRegex)
     return matches ? matches[0] : null
   }
+
+  const handleApply = () => {
+    if (job) {
+      // Convert JobDetails to Database JobPosting type
+      const jobPosting: Database['public']['Tables']['job_postings']['Row'] = {
+        id: job.id,
+        title: job.title,
+        company_name: job.company_name,
+        location: job.location,
+        description: job.description,
+        requirements: job.requirements || null,
+        salary_range: job.salary_range || null,
+        job_type: (job.job_type as 'full-time' | 'part-time' | 'contract' | 'internship') || 'full-time',
+        source_url: null,
+        created_at: job.created_at,
+        updated_at: job.updated_at
+      }
+      
+      openWorkflow(jobPosting)
+      onClose() // Close the job details modal
+    }
+  }
   
   if (!isOpen) {
     return null
@@ -131,6 +158,12 @@ export function JobDetailsModal({ jobId, isOpen, onClose }: JobDetailsModalProps
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="w-[95vw] lg:w-[90vw] lg:max-w-[1400px] max-h-[90vh] overflow-y-auto p-0 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-muted-foreground/20 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb:hover]:bg-muted-foreground/30 scroll-smooth" showCloseButton={true}>
+        {/* Always present DialogTitle for accessibility */}
+        <VisuallyHidden>
+          <DialogTitle>
+            {job ? job.title : isLoading ? '加载中...' : error ? '加载失败' : '职位详情'}
+          </DialogTitle>
+        </VisuallyHidden>
         
         {isLoading && (
           <div className="flex flex-col justify-center items-center py-12 px-6">
@@ -174,9 +207,9 @@ export function JobDetailsModal({ jobId, isOpen, onClose }: JobDetailsModalProps
               <div className="space-y-4">
                 <div className="flex justify-between items-start gap-6">
                   <div className="flex-1 min-w-0">
-                    <DialogTitle className="text-3xl font-bold leading-tight mb-3 text-foreground">
+                    <h1 className="text-3xl font-bold leading-tight mb-3 text-foreground">
                       {job.title}
-                    </DialogTitle>
+                    </h1>
                     <div className="flex items-center gap-3 text-xl text-muted-foreground mb-2">
                       <Building className="h-6 w-6" />
                       <span className="font-medium">{job.company_name}</span>
@@ -192,7 +225,11 @@ export function JobDetailsModal({ jobId, isOpen, onClose }: JobDetailsModalProps
                       <Heart className="h-4 w-4 mr-2" />
                       收藏职位
                     </Button>
-                    <Button size="lg" className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 shadow-lg">
+                    <Button 
+                      size="lg" 
+                      className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 shadow-lg"
+                      onClick={handleApply}
+                    >
                       立即申请
                     </Button>
                   </div>
@@ -407,6 +444,7 @@ export function JobDetailsModal({ jobId, isOpen, onClose }: JobDetailsModalProps
             </div>
         )}
       </DialogContent>
+      <ApplicationWorkflowModal />
     </Dialog>
   )
 }

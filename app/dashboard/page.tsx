@@ -19,8 +19,16 @@ import {
   Plus,
   ArrowRight
 } from 'lucide-react'
+import { ApplicationWorkflowModal } from '@/components/applications/ApplicationWorkflowModal'
+import { useApplicationWorkflowStore } from '@/store/application-workflow'
 
 export default function Dashboard() {
+  const { openWorkflow } = useApplicationWorkflowStore()
+
+  const handleNewApplication = () => {
+    openWorkflow() // Open workflow without a pre-selected job
+  }
+
   return (
     <AppLayout>
       <div className="space-y-6">
@@ -157,7 +165,11 @@ export default function Dashboard() {
                 <Brain className="h-4 w-4" />
                 AI Review
               </Button>
-              <Button variant="outline" className="w-full justify-start gap-3">
+              <Button 
+                variant="outline" 
+                className="w-full justify-start gap-3"
+                onClick={handleNewApplication}
+              >
                 <Briefcase className="h-4 w-4" />
                 New Application
               </Button>
@@ -238,6 +250,7 @@ export default function Dashboard() {
           </Card>
         </div>
       </div>
+      <ApplicationWorkflowModal />
     </AppLayout>
   )
 }

@@ -9,11 +9,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `npm run build` - Build production bundle
 - `npm run lint` - Run ESLint to check code quality
 - `npm start` - Start production server
+- `npm run import-jobs` - Import job data from external sources
+- `npm run verify-import` - Verify job import integrity
 
 ### Database Setup
 - Execute `supabase/schema.sql` in your Supabase project dashboard
-- Create a "resumes" storage bucket in Supabase Storage
-- Ensure Row Level Security policies are active
+- Create a "resumes" storage bucket in Supabase Storage with public access
+- Enable UUID extension: `CREATE EXTENSION IF NOT EXISTS "uuid-ossp"`
+- Apply all Row Level Security (RLS) policies from schema.sql
+- Set up automatic timestamp triggers for `updated_at` columns
 
 ### Environment Variables Required
 ```
@@ -29,10 +33,18 @@ NEXT_PUBLIC_APP_URL=http://localhost:3000
 ### Application Structure
 This is a Next.js 15 app using App Router with a focus on AI-powered resume optimization and job application tracking. The app is built with TypeScript and uses modern React patterns including hooks and context providers.
 
+**Technology Stack:**
+- **Frontend**: Next.js 15, React 19, TypeScript, Tailwind CSS 4, Shadcn/UI
+- **State**: Zustand (UI state), React Query/TanStack Query (server state)
+- **Backend**: Supabase (PostgreSQL, Auth, Storage, Real-time)
+- **AI**: OpenAI GPT-4 API for resume analysis and optimization
+- **File Processing**: Tesseract.js (OCR), PDF.js, Mammoth (DOCX)
+
 **Core Data Flow:**
 1. **File Upload** → Supabase Storage → OCR Processing (Tesseract.js/PDF.js) → AI Structure Analysis → Resume Parsing → Database Storage
 2. **Resume Editing** → Real-time Updates → Version Control → Active Resume Management
 3. **AI Enhancement** → OpenAI API → Resume Analysis → Optimization Suggestions
+4. **Job Matching** → AI Analysis → Keyword Extraction → Application Tracking
 
 ### Key Architectural Patterns
 
@@ -155,19 +167,21 @@ interface ResumeContent {
 - Intelligent content extraction from uploaded files
 - Custom AI hooks (`useAI`) for reusable AI functionality
 
-**Planned AI Features:**
-- Resume analysis and scoring
-- ATS compatibility checking
-- Section-specific content enhancement
-- Job-specific keyword optimization
-- Cover letter generation
+**AI Service Architecture (lib/ai/):**
+- `base-service.ts` - Base class for all AI services
+- `resume-parser.ts` - Extracts structured data from raw text
+- `resume-analyzer.ts` - Analyzes resume quality and provides feedback
+- `ats-analyzer.ts` - Checks ATS compatibility
+- `content-enhancer.ts` - Enhances resume content sections
+- `keyword-suggester.ts` - Suggests relevant keywords for jobs
+- `openai.ts` - OpenAI client configuration
 
 **Implementation Pattern:**
-- AI services in `lib/ai/` directory with OpenAI client
+- Modular AI services extending BaseAIService class
 - Custom hooks in `hooks/useAI.ts` for component integration
-- Error handling and retry logic for API calls
-- Results stored in `ai_reviews` table
-- UI integration through existing "AI Enhance" buttons
+- Error handling with retry logic and fallback strategies
+- Results stored in `ai_reviews` table with typed feedback
+- UI integration through "AI Enhance" buttons in components
 
 ### Development Notes
 
@@ -190,3 +204,56 @@ interface ResumeContent {
 - JSONB queries should use proper indexing for performance
 - React Query caching reduces redundant API calls
 - File upload progress indicators improve UX
+
+### Directory Structure
+
+```
+smart_apply/
+├── app/                     # Next.js App Router pages
+│   ├── (auth)/             # Authentication pages (login/signup)
+│   ├── dashboard/          # Main dashboard
+│   ├── resumes/            # Resume management and editing
+│   ├── jobs/               # Job search and listings
+│   ├── applications/       # Application tracking
+│   ├── ai-review/          # AI-powered resume analysis
+│   ├── templates/          # Cover letter templates
+│   └── settings/           # User settings
+├── components/             # Reusable components
+│   ├── ui/                 # Shadcn/UI components
+│   ├── layout/             # Layout components (Header, Footer)
+│   └── providers/          # React context providers
+├── lib/                    # Core utilities
+│   ├── ai/                 # AI service modules
+│   ├── supabase/           # Supabase client configuration
+│   └── utils/              # Helper functions
+├── hooks/                  # Custom React hooks
+├── store/                  # Zustand state stores
+├── types/                  # TypeScript type definitions
+└── supabase/               # Database schema and migrations
+```
+
+### Key Architectural Decisions
+
+**TypeScript Path Aliases:**
+- Use `@/*` imports for absolute imports from project root
+- Example: `import { Button } from "@/components/ui/button"`
+
+**Component Patterns:**
+- Server Components by default for better performance
+- Client Components marked with `"use client"` only when needed
+- Suspense boundaries for async data loading
+
+**Data Fetching Strategy:**
+- Server Components for initial data loads
+- React Query for client-side data fetching and mutations
+- Optimistic updates for better UX
+
+**Error Handling:**
+- Comprehensive try-catch blocks in async operations
+- User-friendly error messages via toast notifications
+- Fallback UI components for error states
+
+**Form Handling:**
+- React Hook Form for complex forms
+- Zod schemas for validation
+- Server actions for form submissions where applicable
