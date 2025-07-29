@@ -234,6 +234,85 @@ export interface Database {
           updated_at?: string
         }
       }
+      email_settings: {
+        Row: {
+          id: string
+          user_id: string
+          email_address: string
+          email_password: string | null
+          smtp_host: string
+          smtp_port: number
+          use_tls: boolean
+          is_active: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          email_address: string
+          email_password?: string | null
+          smtp_host?: string
+          smtp_port?: number
+          use_tls?: boolean
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          email_address?: string
+          email_password?: string | null
+          smtp_host?: string
+          smtp_port?: number
+          use_tls?: boolean
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      email_logs: {
+        Row: {
+          id: string
+          user_id: string
+          job_application_id: string | null
+          to_email: string
+          subject: string
+          body: string
+          attachments: Json
+          status: 'pending' | 'sent' | 'failed' | 'bounced'
+          error_message: string | null
+          sent_at: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          job_application_id?: string | null
+          to_email: string
+          subject: string
+          body: string
+          attachments?: Json
+          status?: 'pending' | 'sent' | 'failed' | 'bounced'
+          error_message?: string | null
+          sent_at?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          job_application_id?: string | null
+          to_email?: string
+          subject?: string
+          body?: string
+          attachments?: Json
+          status?: 'pending' | 'sent' | 'failed' | 'bounced'
+          error_message?: string | null
+          sent_at?: string | null
+          created_at?: string
+        }
+      }
     }
   }
 }

@@ -84,6 +84,36 @@ CREATE TABLE public.application_templates (
     updated_at timestamptz DEFAULT now()
 );
 
+-- Create email_settings table for user email configuration
+CREATE TABLE public.email_settings (
+    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+    user_id uuid REFERENCES public.users(id) ON DELETE CASCADE NOT NULL,
+    email_address text NOT NULL,
+    email_password text, -- Encrypted password
+    smtp_host text DEFAULT 'smtp-mail.outlook.com',
+    smtp_port integer DEFAULT 587,
+    use_tls boolean DEFAULT true,
+    is_active boolean DEFAULT true,
+    created_at timestamptz DEFAULT now(),
+    updated_at timestamptz DEFAULT now(),
+    UNIQUE(user_id) -- One email config per user
+);
+
+-- Create email_logs table to track sent emails
+CREATE TABLE public.email_logs (
+    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+    user_id uuid REFERENCES public.users(id) ON DELETE CASCADE NOT NULL,
+    job_application_id uuid REFERENCES public.job_applications(id) ON DELETE SET NULL,
+    to_email text NOT NULL,
+    subject text NOT NULL,
+    body text NOT NULL,
+    attachments jsonb DEFAULT '[]', -- Array of attachment info
+    status text CHECK (status IN ('pending', 'sent', 'failed', 'bounced')) DEFAULT 'pending',
+    error_message text,
+    sent_at timestamptz,
+    created_at timestamptz DEFAULT now()
+);
+
 -- Create indexes for better performance
 CREATE INDEX idx_resumes_user_id ON public.resumes(user_id);
 CREATE INDEX idx_resumes_is_active ON public.resumes(is_active);
@@ -92,6 +122,9 @@ CREATE INDEX idx_job_applications_status ON public.job_applications(status);
 CREATE INDEX idx_ai_reviews_user_id ON public.ai_reviews(user_id);
 CREATE INDEX idx_ai_reviews_resume_id ON public.ai_reviews(resume_id);
 CREATE INDEX idx_application_templates_user_id ON public.application_templates(user_id);
+CREATE INDEX idx_email_settings_user_id ON public.email_settings(user_id);
+CREATE INDEX idx_email_logs_user_id ON public.email_logs(user_id);
+CREATE INDEX idx_email_logs_status ON public.email_logs(status);
 
 -- Row Level Security (RLS) policies
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
@@ -99,6 +132,8 @@ ALTER TABLE public.resumes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.job_applications ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.ai_reviews ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.application_templates ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.email_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.email_logs ENABLE ROW LEVEL SECURITY;
 
 -- Users can only see their own data
 CREATE POLICY "Users can view own profile" ON public.users
@@ -155,6 +190,26 @@ CREATE POLICY "Users can update own templates" ON public.application_templates
 
 CREATE POLICY "Users can delete own templates" ON public.application_templates
     FOR DELETE USING (auth.uid() = user_id);
+
+-- Email settings policies
+CREATE POLICY "Users can view own email settings" ON public.email_settings
+    FOR SELECT USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can create own email settings" ON public.email_settings
+    FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update own email settings" ON public.email_settings
+    FOR UPDATE USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete own email settings" ON public.email_settings
+    FOR DELETE USING (auth.uid() = user_id);
+
+-- Email logs policies
+CREATE POLICY "Users can view own email logs" ON public.email_logs
+    FOR SELECT USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can create own email logs" ON public.email_logs
+    FOR INSERT WITH CHECK (auth.uid() = user_id);
 
 -- Enable RLS on job_postings and make them public
 ALTER TABLE public.job_postings ENABLE ROW LEVEL SECURITY;

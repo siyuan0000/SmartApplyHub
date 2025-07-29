@@ -23,10 +23,12 @@ import {
   Save,
   X,
   Lightbulb,
+  Send,
 } from "lucide-react";
 import { useApplicationWorkflowStore } from "@/store/application-workflow";
 import { AIGeneratedEmail } from "@/lib/ai/email-generator";
 import { useAuth } from "@/hooks/useAuth";
+import { SendEmailModal } from "@/components/email/SendEmailModal";
 
 export function EmailGenerationStep() {
   const {
@@ -49,6 +51,7 @@ export function EmailGenerationStep() {
   const [isEditing, setIsEditing] = useState(false);
   const [editedSubject, setEditedSubject] = useState("");
   const [editedBody, setEditedBody] = useState("");
+  const [sendEmailModalOpen, setSendEmailModalOpen] = useState(false);
   const [customInstructions, setCustomInstructions] = useState(
     emailOptions.customInstructions
   );
@@ -652,6 +655,19 @@ export function EmailGenerationStep() {
               </div>
             )}
 
+            {/* Send Email Button */}
+            {!isEditing && (
+              <div className="flex justify-end space-x-2 pt-4 border-t">
+                <Button
+                  onClick={() => setSendEmailModalOpen(true)}
+                  className="bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 text-white"
+                >
+                  <Send className="h-4 w-4 mr-2" />
+                  Send Email
+                </Button>
+              </div>
+            )}
+
             {/* Key Points */}
             {generatedEmail.keypoints &&
               generatedEmail.keypoints.length > 0 && (
@@ -708,6 +724,18 @@ export function EmailGenerationStep() {
           </CardContent>
         </Card>
       )}
+
+      {/* Send Email Modal */}
+      <SendEmailModal
+        open={sendEmailModalOpen}
+        onOpenChange={setSendEmailModalOpen}
+        initialTo=""
+        initialSubject={generatedEmail?.subject || ""}
+        initialBody={generatedEmail?.body || ""}
+        onEmailSent={() => {
+          // Optionally refresh email logs or show success message
+        }}
+      />
     </div>
   );
 }

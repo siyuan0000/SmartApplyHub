@@ -12,7 +12,7 @@ export const createClient = () => {
             .find(row => row.startsWith(`${name}=`))
             ?.split('=')[1];
         },
-        set(name: string, value: string, options: any) {
+        set(name: string, value: string, options: Record<string, unknown>) {
           let cookieString = `${name}=${value}`;
           if (options?.maxAge) cookieString += `; max-age=${options.maxAge}`;
           if (options?.domain) cookieString += `; domain=${options.domain}`;
@@ -22,7 +22,7 @@ export const createClient = () => {
           if (options?.sameSite) cookieString += `; samesite=${options.sameSite}`;
           document.cookie = cookieString;
         },
-        remove(name: string, options: any) {
+        remove(name: string, options: Record<string, unknown>) {
           document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=${options?.path || '/'}`;
         },
       },

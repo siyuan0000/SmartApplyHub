@@ -27,10 +27,13 @@ export default function Resumes() {
   const [deleting, setDeleting] = useState(false)
   const [editingTitle, setEditingTitle] = useState<string | null>(null)
   const [tempTitle, setTempTitle] = useState('')
-  const { user } = useAuth()
+  const { user, loading: authLoading } = useAuth()
 
   const loadResumes = useCallback(async () => {
-    if (!user) return
+    if (!user) {
+      setLoading(false)
+      return
+    }
     try {
       // Ensure user profile exists before loading resumes
       await ensureUserExists(user)
@@ -48,10 +51,12 @@ export default function Resumes() {
   }, [user])
 
   useEffect(() => {
-    if (user) {
+    if (!authLoading && user) {
       loadResumes()
+    } else if (!authLoading && !user) {
+      setLoading(false)
     }
-  }, [user, loadResumes])
+  }, [user, authLoading, loadResumes])
 
   const handleProcessingComplete = async () => {
     setShowUploader(false)
@@ -172,9 +177,15 @@ export default function Resumes() {
         )}
 
         {/* Resume List */}
-        {loading ? (
+        {loading || authLoading ? (
           <div className="text-center py-12">
-            <p className="text-muted-foreground">Loading resumes...</p>
+            <p className="text-muted-foreground">
+              {authLoading ? 'Loading authentication...' : 'Loading resumes...'}
+            </p>
+          </div>
+        ) : !user ? (
+          <div className="text-center py-12">
+            <p className="text-muted-foreground">Please log in to view your resumes</p>
           </div>
         ) : resumes.length === 0 ? (
           <Card className="text-center py-12">
