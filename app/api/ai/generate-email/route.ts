@@ -76,9 +76,58 @@ export async function POST(request: NextRequest) {
                 options
               );
 
+            let fullContent = '';
+
             for await (const chunk of emailStream) {
+              fullContent += chunk;
+              
+              // Send streaming content to show progress
               const data = `data: ${JSON.stringify({ content: chunk })}\n\n`;
               controller.enqueue(encoder.encode(data));
+            }
+
+            // After streaming is complete, try to parse the full JSON
+            try {
+              // Clean up the content - remove any non-JSON parts
+              let jsonContent = fullContent.trim();
+              
+              // Find the JSON object in the content
+              const jsonStart = jsonContent.indexOf('{');
+              const jsonEnd = jsonContent.lastIndexOf('}');
+              
+              if (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd > jsonStart) {
+                jsonContent = jsonContent.substring(jsonStart, jsonEnd + 1);
+                const parsed = JSON.parse(jsonContent);
+                
+                if (parsed.subject && parsed.body) {
+                  // Send the complete structured email data
+                  const emailData = `data: ${JSON.stringify({ 
+                    email: {
+                      subject: parsed.subject,
+                      body: parsed.body,
+                      keypoints: parsed.keypoints || [],
+                      tone: options?.tone || "professional"
+                    }
+                  })}\n\n`;
+                  controller.enqueue(encoder.encode(emailData));
+                } else {
+                  throw new Error('Invalid JSON structure');
+                }
+              } else {
+                throw new Error('No JSON found in content');
+              }
+            } catch (error) {
+              console.log('JSON parsing failed, treating as plain text:', error);
+              // If not valid JSON, treat as plain text body
+              const emailData = `data: ${JSON.stringify({ 
+                email: {
+                  subject: `Application for ${jobPosting.title} at ${jobPosting.company_name}`,
+                  body: fullContent,
+                  keypoints: [],
+                  tone: options?.tone || "professional"
+                }
+              })}\n\n`;
+              controller.enqueue(encoder.encode(emailData));
             }
 
             // Send completion signal

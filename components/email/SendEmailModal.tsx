@@ -235,7 +235,7 @@ export function SendEmailModal({
 
             <div className="space-y-2">
               <Label htmlFor="from">
-                From {(emailConfig as any).from_env && <span className="text-xs text-green-600">(from environment)</span>}
+                From {(emailConfig as EmailConfig & { from_env?: boolean }).from_env && <span className="text-xs text-green-600">(from environment)</span>}
               </Label>
               <Input
                 id="from"

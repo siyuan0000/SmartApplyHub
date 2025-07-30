@@ -101,7 +101,10 @@ Do not enhance content - only restructure existing information and detect langua
       },
     ];
 
-    const content = await this.makeRequest(messages, 3000, 0.1);
-    return JSON.parse(content);
+    // Use optimized settings for parsing task
+    const maxTokens = this.getOptimalTokens(3000);
+    const temperature = this.getOptimalTemperature('parsing');
+    
+    return await this.makeStructuredRequest<ResumeContent>(messages, maxTokens, temperature);
   }
 }

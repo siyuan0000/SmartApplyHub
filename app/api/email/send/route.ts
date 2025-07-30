@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
     try {
       const user = await getAuthenticatedUser(request)
       userId = user.id
-    } catch (error) {
+    } catch {
       console.log('No authentication, will use env config only')
     }
 

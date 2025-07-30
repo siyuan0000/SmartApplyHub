@@ -213,7 +213,7 @@ export class EmailService {
     }
 
     // Log the email attempt (only if we have a user ID)
-    let logEntry: any = null
+    let logEntry: EmailLogRow | null = null
     if (userId) {
       const emailLog: EmailLogInsert = {
         user_id: userId,

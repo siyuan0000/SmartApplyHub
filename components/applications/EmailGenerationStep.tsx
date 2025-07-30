@@ -160,28 +160,38 @@ export function EmailGenerationStep() {
 
                   // Handle complete email data
                   if (data.email) {
+                    // Replace completely with structured data, don't append
                     pendingUpdate = {
-                      subject: data.email.subject || pendingUpdate.subject,
-                      body: data.email.body || pendingUpdate.body,
-                      keypoints: data.email.keypoints || pendingUpdate.keypoints,
+                      subject: data.email.subject,
+                      body: data.email.body,
+                      keypoints: data.email.keypoints || [],
                       tone: data.email.tone || emailOptions.tone,
                     };
+                    // Apply immediately for structured email data
+                    if (updateTimer) clearTimeout(updateTimer);
+                    setGeneratedEmail({ ...pendingUpdate });
                   }
-                  // Handle streaming content (body only)
+                  // Handle streaming content (body only) - for progress indication
                   else if (data.content) {
-                    pendingUpdate.body += data.content;
+                    // Only accumulate content if we don't have structured data yet
+                    if (!pendingUpdate.subject) {
+                      pendingUpdate.body += data.content;
+                    }
+                    // Batch updates for streaming content
+                    if (updateTimer) clearTimeout(updateTimer);
+                    updateTimer = setTimeout(applyUpdate, 50);
                   }
                   // Handle other streaming data
                   else if (data.subject) {
                     pendingUpdate.subject = data.subject;
+                    if (updateTimer) clearTimeout(updateTimer);
+                    updateTimer = setTimeout(applyUpdate, 50);
                   }
                   else if (data.keypoints) {
                     pendingUpdate.keypoints = data.keypoints;
+                    if (updateTimer) clearTimeout(updateTimer);
+                    updateTimer = setTimeout(applyUpdate, 50);
                   }
-
-                  // Batch updates - only update UI every 50ms
-                  if (updateTimer) clearTimeout(updateTimer);
-                  updateTimer = setTimeout(applyUpdate, 50);
 
                   if (data.done) {
                     // Apply final update immediately

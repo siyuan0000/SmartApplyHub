@@ -1,43 +1,15 @@
 import { OpenAI } from 'openai'
+import { AIService } from './ai-service'
 
-// Base OpenAI service with shared configuration and validation
+// Base AI service with shared configuration and validation
+// Now uses the new AIService that supports both DeepSeek and OpenAI
 export class BaseOpenAIService {
-  protected static openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY,
-    dangerouslyAllowBrowser: false // Ensure this only runs on server-side
-  })
-
-  protected static validateApiKey(): void {
-    if (!process.env.OPENAI_API_KEY) {
-      throw new Error('OpenAI API key is required. Please set OPENAI_API_KEY environment variable.')
-    }
-  }
-
   protected static async makeRequest(
     messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
     maxTokens: number = 1500,
     temperature: number = 0.7
-  ) {
-    this.validateApiKey()
-
-    try {
-      const response = await this.openai.chat.completions.create({
-        model: 'gpt-4',
-        messages,
-        max_tokens: maxTokens,
-        temperature
-      })
-
-      const content = response.choices[0].message.content
-      if (!content) {
-        throw new Error('No response from OpenAI')
-      }
-
-      return content
-    } catch (error) {
-      console.error('OpenAI request failed:', error)
-      throw new Error(`Request failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
-    }
+  ): Promise<string> {
+    return AIService.makeRequest(messages, maxTokens, temperature)
   }
 
   protected static async* makeStreamingRequest(
@@ -45,26 +17,23 @@ export class BaseOpenAIService {
     maxTokens: number = 1500,
     temperature: number = 0.7
   ): AsyncGenerator<string, void, unknown> {
-    this.validateApiKey()
+    yield* AIService.makeStreamingRequest(messages, maxTokens, temperature)
+  }
 
-    try {
-      const stream = await this.openai.chat.completions.create({
-        model: 'gpt-4',
-        messages,
-        max_tokens: maxTokens,
-        temperature,
-        stream: true
-      })
+  protected static async makeStructuredRequest<T>(
+    messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
+    maxTokens: number = 1500,
+    temperature: number = 0.7
+  ): Promise<T> {
+    return AIService.makeStructuredRequest<T>(messages, maxTokens, temperature)
+  }
 
-      for await (const chunk of stream) {
-        const content = chunk.choices[0]?.delta?.content
-        if (content) {
-          yield content
-        }
-      }
-    } catch (error) {
-      console.error('OpenAI streaming request failed:', error)
-      throw new Error(`Streaming request failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
-    }
+  // Helper methods for task-specific optimization
+  protected static getOptimalTokens(baseTokens: number): number {
+    return AIService.getOptimalTokens(baseTokens)
+  }
+
+  protected static getOptimalTemperature(task: 'parsing' | 'analysis' | 'generation'): number {
+    return AIService.getOptimalTemperature(task)
   }
 } 

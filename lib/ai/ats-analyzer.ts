@@ -54,7 +54,10 @@ export class ATSAnalyzerService extends BaseOpenAIService {
       }
     ]
 
-    const content = await this.makeRequest(messages, 1500, 0.3)
-    return JSON.parse(content)
+    // Use optimized settings for analysis task
+    const maxTokens = this.getOptimalTokens(1500);
+    const temperature = this.getOptimalTemperature('analysis');
+    
+    return await this.makeStructuredRequest<ATSAnalysisResult>(messages, maxTokens, temperature);
   }
 } 

@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
     try {
       const user = await getAuthenticatedUser(request)
       userId = user.id
-    } catch (error) {
+    } catch {
       console.log('No authentication, cannot get email logs')
       return NextResponse.json({ logs: [] })
     }

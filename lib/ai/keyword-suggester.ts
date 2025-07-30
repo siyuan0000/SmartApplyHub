@@ -32,7 +32,10 @@ export class KeywordSuggesterService extends BaseOpenAIService {
       }
     ]
 
-    const content = await this.makeRequest(messages, 500, 0.3)
-    return JSON.parse(content)
+    // Use optimized settings for analysis task
+    const maxTokens = this.getOptimalTokens(500);
+    const temperature = this.getOptimalTemperature('analysis');
+    
+    return await this.makeStructuredRequest<string[]>(messages, maxTokens, temperature);
   }
 } 

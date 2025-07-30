@@ -48,7 +48,10 @@ export class ContentEnhancerService extends BaseOpenAIService {
       }
     ]
 
-    const responseContent = await this.makeRequest(messages, 1000, 0.5)
-    return JSON.parse(responseContent)
+    // Use optimized settings for generation task
+    const maxTokens = this.getOptimalTokens(1000);
+    const temperature = this.getOptimalTemperature('generation');
+    
+    return await this.makeStructuredRequest<ContentEnhancementResult>(messages, maxTokens, temperature);
   }
 } 

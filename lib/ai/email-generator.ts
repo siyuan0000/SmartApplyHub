@@ -31,53 +31,70 @@ export class EmailGeneratorService extends BaseOpenAIService {
     }
   ): Promise<AIGeneratedEmail> {
     const prompt = `
-      请帮我写一份简单的投递简历邮件。从简历中挑选与一下岗位相关的过往经历，突出强调，保证语言简洁明了。根据职位要求改变语言。
+      请帮我写一份专业的求职申请邮件（cover letter）。请仔细分析职位要求和公司特点，从我的简历中挑选最相关的经历和技能，突出匹配度。
 
-      这是我想要投递的岗位信息：${jobPosting}
+      ## 职位信息分析：
+      职位标题：${jobPosting.title}
+      公司名称：${jobPosting.company_name}
+      职位描述：${jobPosting.description}
+      职位要求：${jobPosting.requirements || '未提供具体要求'}
+      工作地点：${jobPosting.location || '未指定'}
+      薪资范围：${jobPosting.salary_range || '面议'}
 
-      这是我的简历信息：${resumeContent}
+      ## 我的简历信息：
+      姓名：${resumeContent.contact.name || '求职者'}
+      邮箱：${resumeContent.contact.email || ''}
+      电话：${resumeContent.contact.phone || ''}
+      技能：${resumeContent.skills.join(', ') || '待补充'}
       
-      案例：
+      工作经历：
+      ${resumeContent.experience.map(exp => 
+        `- ${exp.title} | ${exp.company} (${exp.startDate || ''} - ${exp.endDate || '至今'})
+         主要职责：${exp.description || ''}
+         关键成就：${exp.achievements?.join('；') || ''}`
+      ).join('\n')}
+      
+      教育背景：
+      ${resumeContent.education.map(edu => 
+        `- ${edu.degree} | ${edu.school} (${edu.graduationDate || ''})
+         GPA：${edu.gpa || ''}
+         荣誉：${edu.honors?.join('；') || ''}`
+      ).join('\n')}
+      
+      项目经历：
+      ${resumeContent.projects?.map(proj => 
+        `- ${proj.name}：${proj.description}
+         技术栈：${proj.technologies?.join('、') || ''}
+         项目详情：${proj.details?.join('；') || ''}`
+      ).join('\n') || '暂无项目经历'}
 
-      尊敬的高瓴创投招聘团队：
-      您好！
-      我是牛津大学物理系的准硕士研究生董子毓。得知贵机构正在招聘“创新科技方向
-      实习生”后，我在仔细阅读岗位描述后撰写此信，希望凭借自身的教育背景、研究经历
-      与投资实习经验，为贵团队在前沿技术领域的投资研究贡献力量。
-      正如我的简历所示，在汉能投资集团担任私募股权分析师实习生期间，我系统性地
-      学习并梳理了硬科技、半导体、新能源与人工智能等赛道的行业信息与痛点，对相关初
-      创企业的竞争格局有了初步认知。此外，在实习中我也熟悉了项目筛选、初步尽调与专
-      家访谈等流程；结合科研中积累的半导体材料、光电材料、超导材料与二维材料知识，
-      以及多次科研实习锻炼出的快速学习能力， 使我能够迅速评估核心技术的可行性与潜在
-      壁垒，并以量化指标和独立观点帮助团队判断技术潜力与行业趋势。
-      与岗位要求的契合
-       理工科背景，极强分析能力：
-      在牛津物理系接受系统训练，能够高效处理与分析数据，提炼关键趋势，并熟练使
-      用 Python、Matlab 等工具。
-       流利外语能力：
-      在求学期间曾多次撰写英文报告和进行学术演讲， 无障碍阅读英文专利和技术论文。
-       好奇心、独立思考：
-      主动跨越量子材料、半导体器件与光学等领域，可以持续发表独立见解和创新点并
-      广受导师好评。
-       深耕技术领域：
-      熟悉传统半导体器件在不同领域的应用和痛点（如消费电子、新能源）与新型半导
-      体器件（如铁电半导体、钙钛矿）的制造流程、应用场景与痛点。
-      在大学期间，我的多次跨领域、跨机构的科研与实习经历为我提供了“科研人的开
-      发者＋投资人的使用者”这一双重视角，能够让我在科研与投资之间架起桥梁。若有幸
-      加入贵机构，我将继续深耕前沿技术，用专业洞察为团队创造价值，并在实践中快速成
-      长。
-      感谢您的审阅，期待与您进一步交流！
-      顺颂商祺
-      董子毓
+      ## 写作要求：
+      1. 邮件要体现出对公司和职位的深入了解和浓厚兴趣
+      2. 突出我的经历与职位要求的匹配程度
+      3. 展现专业素养和沟通能力
+      4. 语言简洁有力，逻辑清晰
+      5. 体现出对公司文化和价值观的认同
+      6. 表达加入团队的强烈意愿
+      
+      ## 邮件结构：
+      - 开头：简洁的自我介绍和申请意图
+      - 主体：结合职位要求分析自己的匹配优势（2-3个核心亮点）
+      - 结尾：表达期待和后续行动
+      - 署名：专业的结束语
 
-      保证语言简洁明了。根据职位要求改变语言。
+      请返回JSON格式，包含以下字段：
+      - subject: 简洁明确的邮件主题
+      - body: 完整的求职邮件正文（纯文本格式，包含适当的换行）
+      - keypoints: 邮件中突出的3个核心卖点
+
+      ${options?.customInstructions ? `\n额外要求：${options.customInstructions}` : ''}
     `;
 
     const messages = [
       {
         role: "system" as const,
         content:
-          "You are an expert career coach and professional email writer. Create personalized, compelling job application emails that highlight the candidate's strengths and match them to the job requirements. Use proper email etiquette and formatting. 保证语言简洁明了。根据职位要求改变语言。",
+          "You are an expert career coach and professional email writer specializing in Chinese job market. Create personalized, compelling job application emails that highlight the candidate's strengths and match them to the job requirements. Analyze company culture and position requirements carefully. Return structured JSON with proper cover letter format including greetings, structured content, and professional closing. Focus on demonstrating genuine interest in the company and role.",
       },
       {
         role: "user" as const,
@@ -85,8 +102,15 @@ export class EmailGeneratorService extends BaseOpenAIService {
       },
     ];
 
-    const content = await this.makeRequest(messages, 2000, 0.7);
-    const parsed = JSON.parse(content);
+    // Use optimized settings for generation task
+    const maxTokens = this.getOptimalTokens(2000);
+    const temperature = this.getOptimalTemperature('generation');
+    
+    const parsed = await this.makeStructuredRequest<{
+      subject?: string;
+      body?: string;
+      keypoints?: string[];
+    }>(messages, maxTokens, temperature);
     return {
       subject: parsed.subject || "Job Application",
       body: parsed.body || "",
@@ -95,7 +119,7 @@ export class EmailGeneratorService extends BaseOpenAIService {
     };
   }
 
-  // Streaming version for gradual text rendering
+  // Streaming version for gradual text rendering with structured data
   static async* generateApplicationEmailStream(
     jobPosting: JobPosting,
     resumeContent: ResumeContent,
@@ -106,30 +130,71 @@ export class EmailGeneratorService extends BaseOpenAIService {
     }
   ): AsyncGenerator<string, void, unknown> {
     const prompt = `
-      请帮我写一份简单的投递简历邮件。从简历中挑选与一下岗位相关的过往经历，突出强调，保证语言简洁明了。根据职位要求改变语言。
+      请帮我写一份专业的求职申请邮件（cover letter）。请仔细分析职位要求和公司特点，从我的简历中挑选最相关的经历和技能，突出匹配度。
 
-      这是我想要投递的岗位信息：
-      职位: ${jobPosting.title}
-      公司: ${jobPosting.company_name}
-      描述: ${jobPosting.description}
-      ${jobPosting.requirements ? `要求: ${jobPosting.requirements}` : ''}
+      ## 职位信息分析：
+      职位标题：${jobPosting.title}
+      公司名称：${jobPosting.company_name}
+      职位描述：${jobPosting.description}
+      职位要求：${jobPosting.requirements || '未提供具体要求'}
+      工作地点：${jobPosting.location || '未指定'}
+      薪资范围：${jobPosting.salary_range || '面议'}
 
-      这是我的简历信息：
-      姓名: ${resumeContent.contact.name || 'N/A'}
-      邮箱: ${resumeContent.contact.email || 'N/A'}
-      技能: ${resumeContent.skills.join(', ')}
-      工作经历: ${resumeContent.experience.map(exp => `${exp.title} at ${exp.company} - ${exp.description}`).join('; ')}
-      教育背景: ${resumeContent.education.map(edu => `${edu.degree} from ${edu.school}`).join('; ')}
+      ## 我的简历信息：
+      姓名：${resumeContent.contact.name || '求职者'}
+      邮箱：${resumeContent.contact.email || ''}
+      电话：${resumeContent.contact.phone || ''}
+      技能：${resumeContent.skills.join(', ') || '待补充'}
       
-      附加指示: ${options?.customInstructions || ''}
+      工作经历：
+      ${resumeContent.experience.map(exp => 
+        `- ${exp.title} | ${exp.company} (${exp.startDate || ''} - ${exp.endDate || '至今'})
+         主要职责：${exp.description || ''}
+         关键成就：${exp.achievements?.join('；') || ''}`
+      ).join('\n')}
+      
+      教育背景：
+      ${resumeContent.education.map(edu => 
+        `- ${edu.degree} | ${edu.school} (${edu.graduationDate || ''})
+         GPA：${edu.gpa || ''}
+         荣誉：${edu.honors?.join('；') || ''}`
+      ).join('\n')}
+      
+      项目经历：
+      ${resumeContent.projects?.map(proj => 
+        `- ${proj.name}：${proj.description}
+         技术栈：${proj.technologies?.join('、') || ''}
+         项目详情：${proj.details?.join('；') || ''}`
+      ).join('\n') || '暂无项目经历'}
 
-      请直接返回邮件内容，不要JSON格式。保证语言简洁明了。根据职位要求改变语言。
+      ## 写作要求：
+      1. 邮件要体现出对公司和职位的深入了解和浓厚兴趣
+      2. 突出我的经历与职位要求的匹配程度
+      3. 展现专业素养和沟通能力
+      4. 语言简洁有力，逻辑清晰
+      5. 体现出对公司文化和价值观的认同
+      6. 表达加入团队的强烈意愿
+      
+      ## 邮件结构：
+      - 开头：简洁的自我介绍和申请意图
+      - 主体：结合职位要求分析自己的匹配优势（2-3个核心亮点）
+      - 结尾：表达期待和后续行动
+      - 署名：专业的结束语
+
+      请返回JSON格式，包含以下字段：
+      {
+        "subject": "简洁明确的邮件主题",
+        "body": "完整的求职邮件正文（纯文本格式，包含适当的换行）",
+        "keypoints": ["邮件中突出的3个核心卖点"]
+      }
+
+      ${options?.customInstructions ? `\n额外要求：${options.customInstructions}` : ''}
     `;
 
     const messages = [
       {
         role: "system" as const,
-        content: "You are an expert career coach and professional email writer. Create personalized, compelling job application emails that highlight the candidate's strengths and match them to the job requirements. Return the email content directly without JSON formatting. 保证语言简洁明了。根据职位要求改变语言。",
+        content: "You are an expert career coach and professional email writer specializing in Chinese job market. Create personalized, compelling job application emails that highlight the candidate's strengths and match them to the job requirements. Analyze company culture and position requirements carefully. Return a JSON object with subject, body, and keypoints fields. The body should be a proper cover letter format with appropriate greetings, structured content, and professional closing.",
       },
       {
         role: "user" as const,
@@ -137,7 +202,11 @@ export class EmailGeneratorService extends BaseOpenAIService {
       },
     ];
 
-    yield* this.makeStreamingRequest(messages, 2000, 0.7);
+    // Use optimized settings for streaming generation
+    const maxTokens = this.getOptimalTokens(2000);
+    const temperature = this.getOptimalTemperature('generation');
+    
+    yield* this.makeStreamingRequest(messages, maxTokens, temperature);
   }
 
   static async enhanceEmailContent(
@@ -186,7 +255,10 @@ export class EmailGeneratorService extends BaseOpenAIService {
       },
     ];
 
-    const content = await this.makeRequest(messages, 1500, 0.6);
-    return JSON.parse(content);
+    // Use optimized settings for generation task
+    const maxTokens = this.getOptimalTokens(1500);
+    const temperature = this.getOptimalTemperature('generation');
+    
+    return await this.makeStructuredRequest<AIGeneratedEmail>(messages, maxTokens, temperature);
   }
 }

@@ -45,7 +45,10 @@ export class ResumeAnalyzerService extends BaseOpenAIService {
       }
     ]
 
-    const content = await this.makeRequest(messages, 1500, 0.7)
-    return JSON.parse(content)
+    // Use optimized settings for analysis task
+    const maxTokens = this.getOptimalTokens(1500);
+    const temperature = this.getOptimalTemperature('analysis');
+    
+    return await this.makeStructuredRequest<AIAnalysisResult>(messages, maxTokens, temperature);
   }
 } 
