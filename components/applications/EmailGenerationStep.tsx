@@ -56,6 +56,7 @@ export function EmailGenerationStep() {
     emailOptions.customInstructions
   );
   const [copied, setCopied] = useState<"subject" | "body" | null>(null);
+  const [isContentReady, setIsContentReady] = useState(false);
 
   useEffect(() => {
     if (generatedEmail) {
@@ -67,6 +68,12 @@ export function EmailGenerationStep() {
   const generateEmail = useCallback(async () => {
     if (!selectedJob || !selectedResume) {
       setError("Job and resume must be selected");
+      return;
+    }
+
+    // Prevent double generation
+    if (isGeneratingEmail) {
+      console.log("🛑 Generation already in progress, skipping");
       return;
     }
 
@@ -82,6 +89,7 @@ export function EmailGenerationStep() {
 
     setGeneratingEmail(true);
     setError(null);
+    setIsContentReady(false);
     // Set empty initial state for smooth streaming
     setGeneratedEmail({
       subject: "",
@@ -135,10 +143,16 @@ export function EmailGenerationStep() {
         
         let updateTimer: NodeJS.Timeout | null = null;
         let pendingUpdate = { ...currentEmail };
+        let hasSubject = false;
+        let hasCompleteBody = false;
 
         // Batch updates for smoother rendering
         const applyUpdate = () => {
           setGeneratedEmail({ ...pendingUpdate });
+          // Mark content ready when we have at least a subject
+          if (pendingUpdate.subject && !isContentReady) {
+            setIsContentReady(true);
+          }
         };
 
         try {
@@ -158,45 +172,58 @@ export function EmailGenerationStep() {
                     throw new Error(data.error);
                   }
 
-                  // Handle complete email data
-                  if (data.email) {
-                    // Replace completely with structured data, don't append
+                  // Handle progressive updates
+                  if (data.subject && !hasSubject) {
+                    pendingUpdate.subject = data.subject;
+                    hasSubject = true;
+                    // Apply subject immediately for quick feedback
+                    setGeneratedEmail({ ...pendingUpdate });
+                    setIsContentReady(true);
+                  }
+                  
+                  // Handle body chunks (progressive updates)
+                  else if (data.bodyChunk) {
+                    pendingUpdate.body = data.bodyChunk;
+                    // Batch body updates for smooth rendering
+                    if (updateTimer) clearTimeout(updateTimer);
+                    updateTimer = setTimeout(applyUpdate, 50);
+                  }
+                  
+                  // Handle complete body (when separator is found)
+                  else if (data.body && !hasCompleteBody) {
+                    pendingUpdate.body = data.body;
+                    hasCompleteBody = true;
+                    if (updateTimer) clearTimeout(updateTimer);
+                    updateTimer = setTimeout(applyUpdate, 50);
+                  }
+                  
+                  // Handle keypoints
+                  else if (data.keypoints) {
+                    pendingUpdate.keypoints = data.keypoints;
+                    if (updateTimer) clearTimeout(updateTimer);
+                    updateTimer = setTimeout(applyUpdate, 50);
+                  }
+                  
+                  // Handle complete email data (final structure)
+                  else if (data.email) {
                     pendingUpdate = {
                       subject: data.email.subject,
                       body: data.email.body,
                       keypoints: data.email.keypoints || [],
                       tone: data.email.tone || emailOptions.tone,
                     };
-                    // Apply immediately for structured email data
+                    // Apply immediately for final email data
                     if (updateTimer) clearTimeout(updateTimer);
                     setGeneratedEmail({ ...pendingUpdate });
-                  }
-                  // Handle streaming content (body only) - for progress indication
-                  else if (data.content) {
-                    // Only accumulate content if we don't have structured data yet
-                    if (!pendingUpdate.subject) {
-                      pendingUpdate.body += data.content;
-                    }
-                    // Batch updates for streaming content
-                    if (updateTimer) clearTimeout(updateTimer);
-                    updateTimer = setTimeout(applyUpdate, 50);
-                  }
-                  // Handle other streaming data
-                  else if (data.subject) {
-                    pendingUpdate.subject = data.subject;
-                    if (updateTimer) clearTimeout(updateTimer);
-                    updateTimer = setTimeout(applyUpdate, 50);
-                  }
-                  else if (data.keypoints) {
-                    pendingUpdate.keypoints = data.keypoints;
-                    if (updateTimer) clearTimeout(updateTimer);
-                    updateTimer = setTimeout(applyUpdate, 50);
+                    setIsContentReady(true);
                   }
 
                   if (data.done) {
                     // Apply final update immediately
                     if (updateTimer) clearTimeout(updateTimer);
-                    applyUpdate();
+                    if (pendingUpdate.subject || pendingUpdate.body) {
+                      applyUpdate();
+                    }
                     break;
                   }
                 } catch {
@@ -213,6 +240,7 @@ export function EmailGenerationStep() {
         // Fallback to non-streaming response
         const data = await response.json();
         setGeneratedEmail(data.email);
+        setIsContentReady(true);
       }
 
       // Update custom instructions in store
@@ -227,12 +255,14 @@ export function EmailGenerationStep() {
     selectedResume,
     emailOptions,
     customInstructions,
+    user,
+    authLoading,
+    isGeneratingEmail,
     setGeneratingEmail,
     setError,
     setGeneratedEmail,
     setEmailOptions,
-    user,
-    authLoading,
+    // isContentReady intentionally omitted to prevent unnecessary function recreation
   ]);
 
   const regenerateEmail = async () => {
@@ -244,6 +274,7 @@ export function EmailGenerationStep() {
 
     setGeneratingEmail(true);
     setError(null);
+    setIsContentReady(false);
     
     // Keep existing content visible during enhancement
     // The streaming will update it smoothly
@@ -278,6 +309,7 @@ export function EmailGenerationStep() {
 
       const data = await response.json();
       setGeneratedEmail(data.email);
+      setIsContentReady(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to enhance email");
     } finally {
@@ -323,59 +355,6 @@ export function EmailGenerationStep() {
     setEmailOptions({ includeAttachments });
   };
 
-  // Auto-generate on first load if we have job and resume
-  useEffect(() => {
-    // Debug: Log auto-generation trigger conditions
-    console.log("🔄 Auto-generation effect triggered:", {
-      hasJob: !!selectedJob,
-      hasResume: !!selectedResume,
-      hasGeneratedEmail: !!generatedEmail,
-      isGenerating: isGeneratingEmail,
-      hasUser: !!user,
-      userId: user?.id,
-      authLoading,
-      willGenerate:
-        selectedJob &&
-        selectedResume &&
-        !generatedEmail &&
-        !isGeneratingEmail &&
-        user &&
-        !authLoading,
-      timestamp: new Date().toISOString(),
-    });
-
-    // Wait for auth to load and ensure user is authenticated before auto-generating
-    if (
-      selectedJob &&
-      selectedResume &&
-      !generatedEmail &&
-      !isGeneratingEmail &&
-      user &&
-      !authLoading
-    ) {
-      console.log("✅ Auto-generating email...");
-      generateEmail();
-    } else if (
-      selectedJob &&
-      selectedResume &&
-      !generatedEmail &&
-      !isGeneratingEmail &&
-      !authLoading &&
-      !user
-    ) {
-      console.log("❌ Cannot auto-generate: user not authenticated");
-      setError("Please log in to generate emails");
-    }
-  }, [
-    selectedJob,
-    selectedResume,
-    generatedEmail,
-    isGeneratingEmail,
-    generateEmail,
-    user,
-    authLoading,
-    setError,
-  ]);
 
   if (!selectedJob || !selectedResume) {
     return (
@@ -606,9 +585,12 @@ export function EmailGenerationStep() {
                 />
               ) : (
                 <div className="p-3 bg-gray-50 rounded-md font-medium min-h-[2.5rem] flex items-center">
-                  {generatedEmail.subject || (isGeneratingEmail && <span className="text-muted-foreground">Generating subject</span>)}
-                  {isGeneratingEmail && generatedEmail.subject && (
-                    <span className="inline-block ml-0.5">▌</span>
+                  {generatedEmail.subject ? (
+                    generatedEmail.subject
+                  ) : (
+                    <span className="text-muted-foreground">
+                      {isGeneratingEmail ? "Generating subject..." : "Waiting for email..."}
+                    </span>
                   )}
                 </div>
               )}
@@ -644,9 +626,12 @@ export function EmailGenerationStep() {
                 />
               ) : (
                 <div className="p-4 bg-gray-50 rounded-md whitespace-pre-wrap text-sm font-mono min-h-[200px] max-h-[400px] overflow-y-auto">
-                  {generatedEmail.body}
-                  {isGeneratingEmail && (
-                    <span className="inline-block ml-0.5">▌</span>
+                  {generatedEmail.body ? (
+                    generatedEmail.body
+                  ) : (
+                    <span className="text-muted-foreground">
+                      {isGeneratingEmail ? "Generating email content..." : "Waiting for email..."}
+                    </span>
                   )}
                 </div>
               )}

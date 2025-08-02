@@ -26,6 +26,9 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
 OPENAI_API_KEY=your_openai_api_key
 NEXT_PUBLIC_APP_URL=http://localhost:3000
+
+# Optional for AI provider fallback
+DEEPSEEK_API_KEY=your_deepseek_api_key  # Optional: Fallback AI provider
 ```
 
 ## Architecture Overview
@@ -37,7 +40,7 @@ This is a Next.js 15 app using App Router with a focus on AI-powered resume opti
 - **Frontend**: Next.js 15, React 19, TypeScript, Tailwind CSS 4, Shadcn/UI
 - **State**: Zustand (UI state), React Query/TanStack Query (server state)
 - **Backend**: Supabase (PostgreSQL, Auth, Storage, Real-time)
-- **AI**: OpenAI GPT-4 API for resume analysis and optimization
+- **AI**: OpenAI GPT-4 API with DeepSeek fallback for resume analysis and optimization
 - **File Processing**: Tesseract.js (OCR), PDF.js, Mammoth (DOCX)
 
 **Core Data Flow:**
@@ -75,6 +78,7 @@ This is a Next.js 15 app using App Router with a focus on AI-powered resume opti
 - `ai_reviews` - AI analysis results and feedback
 - `application_templates` - Cover letter templates
 - `job_postings` - Public job listings (read-only access)
+- `email_settings` - User email configuration for automated sending
 
 **Important Relationships:**
 - Users own multiple resumes (one active at a time)
@@ -187,6 +191,7 @@ interface ResumeContent {
 - `keyword-suggester.ts` - Suggests relevant keywords for jobs
 - `email-generator.ts` - Generates personalized email content
 - `openai.ts` - OpenAI client configuration
+- `ai-service.ts` - Unified AI service with DeepSeek/OpenAI fallback logic
 
 **Implementation Pattern:**
 - Modular AI services extending BaseAIService class
@@ -204,6 +209,8 @@ interface ResumeContent {
 - File upload size limits enforced both client and server-side (max 10MB)
 - OpenAI API rate limits and error handling in AI processing
 - Mammoth.js for DOCX processing requires proper error handling
+- Resume processing enforces single-page limit (multi-page PDFs rejected)
+- AI service includes automatic fallback from OpenAI to DeepSeek on errors
 
 **Testing Strategy:**
 - Test complete upload → OCR → parsing → editing workflow
@@ -235,7 +242,8 @@ smart_apply/
 │       ├── applications/   # Application CRUD
 │       ├── jobs/           # Job data endpoints
 │       ├── resumes/        # Resume CRUD
-│       └── user/           # User profile endpoints
+│       ├── user/           # User profile endpoints
+│       └── email/          # Email sending functionality
 ├── components/             # Reusable components
 │   ├── ui/                 # Shadcn/UI components
 │   ├── layout/             # Layout components (Header, Sidebar)
@@ -300,3 +308,11 @@ The `util/` directory contains Python utilities for advanced resume processing:
 - `resume_evaluator.py` - Evaluates resume quality
 - `resume_section_splitter.py` - Splits resumes into sections
 - These utilities complement the main Node.js application
+
+### Multi-Language Support
+
+The application supports both English and Chinese resumes:
+- Language detection during resume upload (`language` field in database)
+- Cultural formatting differences handled in processing
+- Original headers preserved for localization
+- Resume templates adapt based on detected language

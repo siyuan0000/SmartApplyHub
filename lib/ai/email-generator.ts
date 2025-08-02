@@ -181,12 +181,17 @@ export class EmailGeneratorService extends BaseOpenAIService {
       - 结尾：表达期待和后续行动
       - 署名：专业的结束语
 
-      请返回JSON格式，包含以下字段：
-      {
-        "subject": "简洁明确的邮件主题",
-        "body": "完整的求职邮件正文（纯文本格式，包含适当的换行）",
-        "keypoints": ["邮件中突出的3个核心卖点"]
-      }
+      ## 重要：输出格式要求
+      请严格按照以下格式输出（不要输出JSON），使用三个等号作为分隔符：
+      
+      Subject: [在这里写邮件主题]
+      ===
+      [在这里写完整的邮件正文，包含所有段落和格式]
+      ===
+      Keypoints:
+      - [核心卖点1]
+      - [核心卖点2]  
+      - [核心卖点3]
 
       ${options?.customInstructions ? `\n额外要求：${options.customInstructions}` : ''}
     `;
@@ -194,7 +199,7 @@ export class EmailGeneratorService extends BaseOpenAIService {
     const messages = [
       {
         role: "system" as const,
-        content: "You are an expert career coach and professional email writer specializing in Chinese job market. Create personalized, compelling job application emails that highlight the candidate's strengths and match them to the job requirements. Analyze company culture and position requirements carefully. Return a JSON object with subject, body, and keypoints fields. The body should be a proper cover letter format with appropriate greetings, structured content, and professional closing.",
+        content: "You are an expert career coach and professional email writer specializing in Chinese job market. Create personalized, compelling job application emails that highlight the candidate's strengths and match them to the job requirements. Analyze company culture and position requirements carefully. Output in the exact format requested with Subject:, body content, and Keypoints: sections separated by === delimiters. The body should be a proper cover letter format with appropriate greetings, structured content, and professional closing.",
       },
       {
         role: "user" as const,

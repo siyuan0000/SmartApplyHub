@@ -76,59 +76,104 @@ export async function POST(request: NextRequest) {
                 options
               );
 
-            let fullContent = '';
+            let buffer = '';
+            let subject = '';
+            let body = '';
+            let keypoints: string[] = [];
+            let currentSection: 'subject' | 'body' | 'keypoints' = 'subject';
+            let subjectSent = false;
+            let bodySent = false;
 
             for await (const chunk of emailStream) {
-              fullContent += chunk;
+              buffer += chunk;
               
-              // Send streaming content to show progress
-              const data = `data: ${JSON.stringify({ content: chunk })}\n\n`;
-              controller.enqueue(encoder.encode(data));
+              // Process buffer to extract sections progressively
+              while (buffer.length > 0) {
+                if (currentSection === 'subject') {
+                  // Look for subject line
+                  const subjectMatch = buffer.match(/Subject:\s*(.+?)(?:\n|===)/);
+                  if (subjectMatch) {
+                    subject = subjectMatch[1].trim();
+                    // Send subject immediately
+                    if (!subjectSent) {
+                      const subjectData = `data: ${JSON.stringify({ subject })}\n\n`;
+                      controller.enqueue(encoder.encode(subjectData));
+                      subjectSent = true;
+                    }
+                    
+                    // Check if we have the first separator
+                    const firstSeparatorIndex = buffer.indexOf('===');
+                    if (firstSeparatorIndex !== -1) {
+                      buffer = buffer.substring(firstSeparatorIndex + 3).trimStart();
+                      currentSection = 'body';
+                    } else {
+                      break; // Wait for more content
+                    }
+                  } else {
+                    break; // Wait for more content
+                  }
+                }
+                
+                if (currentSection === 'body') {
+                  // Look for the second separator
+                  const secondSeparatorIndex = buffer.indexOf('===');
+                  if (secondSeparatorIndex !== -1) {
+                    // Extract complete body
+                    const bodyContent = buffer.substring(0, secondSeparatorIndex).trim();
+                    if (bodyContent && !bodySent) {
+                      body = bodyContent;
+                      // Send complete body
+                      const bodyData = `data: ${JSON.stringify({ body })}\n\n`;
+                      controller.enqueue(encoder.encode(bodyData));
+                      bodySent = true;
+                    }
+                    
+                    buffer = buffer.substring(secondSeparatorIndex + 3).trimStart();
+                    currentSection = 'keypoints';
+                  } else {
+                    // Stream body content as it arrives
+                    const partialBody = buffer.trim();
+                    if (partialBody && partialBody.length > body.length) {
+                      body = partialBody;
+                      const bodyChunkData = `data: ${JSON.stringify({ bodyChunk: body })}\n\n`;
+                      controller.enqueue(encoder.encode(bodyChunkData));
+                    }
+                    break; // Wait for more content
+                  }
+                }
+                
+                if (currentSection === 'keypoints') {
+                  // Extract keypoints
+                  const keypointsMatch = buffer.match(/Keypoints:\s*([\s\S]*)/);
+                  if (keypointsMatch) {
+                    const keypointsText = keypointsMatch[1];
+                    const extractedKeypoints = keypointsText
+                      .split('\n')
+                      .filter(line => line.trim().startsWith('-'))
+                      .map(line => line.replace(/^-\s*/, '').trim())
+                      .filter(point => point.length > 0);
+                    
+                    if (extractedKeypoints.length > 0) {
+                      keypoints = extractedKeypoints;
+                      const keypointsData = `data: ${JSON.stringify({ keypoints })}\n\n`;
+                      controller.enqueue(encoder.encode(keypointsData));
+                    }
+                  }
+                  break; // We've processed everything
+                }
+              }
             }
 
-            // After streaming is complete, try to parse the full JSON
-            try {
-              // Clean up the content - remove any non-JSON parts
-              let jsonContent = fullContent.trim();
-              
-              // Find the JSON object in the content
-              const jsonStart = jsonContent.indexOf('{');
-              const jsonEnd = jsonContent.lastIndexOf('}');
-              
-              if (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd > jsonStart) {
-                jsonContent = jsonContent.substring(jsonStart, jsonEnd + 1);
-                const parsed = JSON.parse(jsonContent);
-                
-                if (parsed.subject && parsed.body) {
-                  // Send the complete structured email data
-                  const emailData = `data: ${JSON.stringify({ 
-                    email: {
-                      subject: parsed.subject,
-                      body: parsed.body,
-                      keypoints: parsed.keypoints || [],
-                      tone: options?.tone || "professional"
-                    }
-                  })}\n\n`;
-                  controller.enqueue(encoder.encode(emailData));
-                } else {
-                  throw new Error('Invalid JSON structure');
-                }
-              } else {
-                throw new Error('No JSON found in content');
-              }
-            } catch (error) {
-              console.log('JSON parsing failed, treating as plain text:', error);
-              // If not valid JSON, treat as plain text body
-              const emailData = `data: ${JSON.stringify({ 
-                email: {
-                  subject: `Application for ${jobPosting.title} at ${jobPosting.company_name}`,
-                  body: fullContent,
-                  keypoints: [],
-                  tone: options?.tone || "professional"
-                }
-              })}\n\n`;
-              controller.enqueue(encoder.encode(emailData));
-            }
+            // Send final complete email structure
+            const finalEmail = {
+              subject: subject || `Application for ${jobPosting.title} at ${jobPosting.company_name}`,
+              body: body || buffer, // Use buffer as fallback if parsing failed
+              keypoints: keypoints,
+              tone: options?.tone || "professional"
+            };
+            
+            const emailData = `data: ${JSON.stringify({ email: finalEmail })}\n\n`;
+            controller.enqueue(encoder.encode(emailData));
 
             // Send completion signal
             const doneData = `data: ${JSON.stringify({ done: true })}\n\n`;

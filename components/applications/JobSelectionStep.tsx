@@ -1,119 +1,123 @@
-'use client'
+"use client";
 
-import { useState, useEffect } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Badge } from '@/components/ui/badge'
-import { Skeleton } from '@/components/ui/skeleton'
-import { 
-  Search, 
-  MapPin, 
-  Building, 
+import { useState, useEffect } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Search,
+  MapPin,
+  Building,
   DollarSign,
   Clock,
   ChevronRight,
-  Loader2
-} from 'lucide-react'
-import { useApplicationWorkflowStore } from '@/store/application-workflow'
-import { Database } from '@/types/database.types'
+  Loader2,
+} from "lucide-react";
+import { useApplicationWorkflowStore } from "@/store/application-workflow";
+import { Database } from "@/types/database.types";
 
-type JobPosting = Database['public']['Tables']['job_postings']['Row']
+type JobPosting = Database["public"]["Tables"]["job_postings"]["Row"];
 
 interface JobSearchResponse {
-  jobs: JobPosting[]
+  jobs: JobPosting[];
   pagination: {
-    page: number
-    limit: number
-    total: number
-    pages: number
-  }
+    page: number;
+    limit: number;
+    total: number;
+    pages: number;
+  };
 }
 
 export function JobSelectionStep() {
-  const { selectedJob, setSelectedJob } = useApplicationWorkflowStore()
-  const [searchTerm, setSearchTerm] = useState('')
-  const [jobs, setJobs] = useState<JobPosting[]>([])
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [page, setPage] = useState(1)
-  const [hasMore, setHasMore] = useState(true)
+  const { selectedJob, setSelectedJob } = useApplicationWorkflowStore();
+  const [searchTerm, setSearchTerm] = useState("");
+  const [jobs, setJobs] = useState<JobPosting[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
 
-  const searchJobs = async (query: string, pageNum: number = 1, append: boolean = false) => {
-    setLoading(true)
-    setError(null)
-    
+  const searchJobs = async (
+    query: string,
+    pageNum: number = 1,
+    append: boolean = false
+  ) => {
+    setLoading(true);
+    setError(null);
+
     try {
       const params = new URLSearchParams({
         q: query,
         page: pageNum.toString(),
-        limit: '10'
-      })
-      
-      const response = await fetch(`/api/jobs?${params}`)
+        limit: "10",
+      });
+
+      const response = await fetch(`/api/jobs?${params}`);
       if (!response.ok) {
-        throw new Error('Failed to search jobs')
+        throw new Error("Failed to search jobs");
       }
-      
-      const data: JobSearchResponse = await response.json()
-      
+
+      const data: JobSearchResponse = await response.json();
+
       if (append) {
-        setJobs(prev => [...prev, ...data.jobs])
+        setJobs((prev) => [...prev, ...data.jobs]);
       } else {
-        setJobs(data.jobs)
+        setJobs(data.jobs);
       }
-      
-      setHasMore(data.pagination.page < data.pagination.pages)
-      setPage(pageNum)
+
+      setHasMore(data.pagination.page < data.pagination.pages);
+      setPage(pageNum);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load jobs')
+      setError(err instanceof Error ? err.message : "Failed to load jobs");
       if (!append) {
-        setJobs([])
+        setJobs([]);
       }
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   useEffect(() => {
     // Load initial jobs
-    searchJobs('')
-  }, [])
+    searchJobs("");
+  }, []);
 
   const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault()
-    setPage(1)
-    searchJobs(searchTerm, 1, false)
-  }
+    e.preventDefault();
+    setPage(1);
+    searchJobs(searchTerm, 1, false);
+  };
 
   const handleLoadMore = () => {
-    searchJobs(searchTerm, page + 1, true)
-  }
+    searchJobs(searchTerm, page + 1, true);
+  };
 
   const handleSelectJob = (job: JobPosting) => {
-    setSelectedJob(job)
-  }
+    setSelectedJob(job);
+  };
 
   const formatSalary = (salary: string | null) => {
-    if (!salary) return 'Salary not disclosed'
-    return salary
-  }
+    if (!salary) return "Salary not disclosed";
+    return salary;
+  };
 
   const formatJobType = (jobType: string | null) => {
-    if (!jobType) return 'Full-time'
-    return jobType.charAt(0).toUpperCase() + jobType.slice(1)
-  }
+    if (!jobType) return "Full-time";
+    return jobType.charAt(0).toUpperCase() + jobType.slice(1);
+  };
 
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString)
-    const now = new Date()
-    const diffTime = Math.abs(now.getTime() - date.getTime())
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-    
-    if (diffDays === 1) return 'Posted today'
-    if (diffDays <= 7) return `Posted ${diffDays} days ago`
-    return `Posted ${date.toLocaleDateString()}`
-  }
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffTime = Math.abs(now.getTime() - date.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    if (diffDays === 1) return "Posted today";
+    if (diffDays <= 7) return `Posted ${diffDays} days ago`;
+    return `Posted ${date.toLocaleDateString()}`;
+  };
 
   if (selectedJob) {
     return (
@@ -124,7 +128,7 @@ export function JobSelectionStep() {
             You can proceed to the next step or choose a different job below.
           </p>
         </div>
-        
+
         <Card className="border-green-200 bg-green-50">
           <CardHeader>
             <CardTitle className="flex items-center justify-between">
@@ -137,8 +141,8 @@ export function JobSelectionStep() {
                   <span>{selectedJob.company_name}</span>
                 </div>
               </div>
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 size="sm"
                 onClick={() => setSelectedJob(null)}
               >
@@ -166,7 +170,7 @@ export function JobSelectionStep() {
           </CardContent>
         </Card>
       </div>
-    )
+    );
   }
 
   return (
@@ -221,8 +225,8 @@ export function JobSelectionStep() {
           </div>
         ) : (
           jobs.map((job) => (
-            <Card 
-              key={job.id} 
+            <Card
+              key={job.id}
               className="cursor-pointer hover:shadow-md transition-shadow"
               onClick={() => handleSelectJob(job)}
             >
@@ -236,7 +240,7 @@ export function JobSelectionStep() {
                       <Building className="h-4 w-4" />
                       <span className="font-medium">{job.company_name}</span>
                     </div>
-                    
+
                     <div className="flex flex-wrap gap-4 mb-3 text-sm text-muted-foreground">
                       <div className="flex items-center gap-1">
                         <MapPin className="h-3 w-3" />
@@ -251,19 +255,23 @@ export function JobSelectionStep() {
                         {formatDate(job.created_at)}
                       </div>
                     </div>
-                    
+
                     <div className="flex gap-2 mb-3">
                       <Badge variant="outline">
                         {formatJobType(job.job_type)}
                       </Badge>
                     </div>
-                    
+
                     <p className="text-sm text-muted-foreground line-clamp-2">
                       {job.description}
                     </p>
                   </div>
-                  
-                  <Button variant="ghost" size="sm" className="ml-4 flex-shrink-0">
+
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="ml-4 flex-shrink-0"
+                  >
                     <ChevronRight className="h-4 w-4" />
                   </Button>
                 </div>
@@ -276,16 +284,12 @@ export function JobSelectionStep() {
       {/* Load More */}
       {hasMore && jobs.length > 0 && (
         <div className="text-center">
-          <Button 
-            variant="outline" 
-            onClick={handleLoadMore}
-            disabled={loading}
-          >
+          <Button variant="outline" onClick={handleLoadMore} disabled={loading}>
             {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
             Load More Jobs
           </Button>
         </div>
       )}
     </div>
-  )
+  );
 }
