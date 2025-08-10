@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
+import { Skeleton } from '@/components/ui/skeleton'
 import { 
   FileText, 
   Briefcase, 
@@ -17,13 +18,18 @@ import {
   Clock,
   Target,
   Plus,
-  ArrowRight
+  ArrowRight,
+  AlertCircle
 } from 'lucide-react'
 import { ApplicationWorkflowModal } from '@/components/applications/ApplicationWorkflowModal'
 import { useApplicationWorkflowStore } from '@/store/application-workflow'
+import { useDashboardData } from '@/hooks/useDashboardData'
+import { formatRelativeTime } from '@/lib/utils/time'
+import Link from 'next/link'
 
 export default function Dashboard() {
   const { openWorkflow } = useApplicationWorkflowStore()
+  const { recentApplications, stats, loading, error, refresh } = useDashboardData()
 
   const handleNewApplication = () => {
     openWorkflow() // Open workflow without a pre-selected job
@@ -40,9 +46,13 @@ export default function Dashboard() {
               <Briefcase className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">24</div>
+              {loading ? (
+                <Skeleton className="h-8 w-16 mb-1" />
+              ) : (
+                <div className="text-2xl font-bold">{stats.totalApplications}</div>
+              )}
               <p className="text-xs text-muted-foreground">
-                +3 from last week
+                Total submitted
               </p>
             </CardContent>
           </Card>
@@ -53,9 +63,13 @@ export default function Dashboard() {
               <Calendar className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">5</div>
+              {loading ? (
+                <Skeleton className="h-8 w-16 mb-1" />
+              ) : (
+                <div className="text-2xl font-bold">{stats.interviews}</div>
+              )}
               <p className="text-xs text-muted-foreground">
-                2 scheduled this week
+                Interview stage
               </p>
             </CardContent>
           </Card>
@@ -66,22 +80,30 @@ export default function Dashboard() {
               <TrendingUp className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">18%</div>
+              {loading ? (
+                <Skeleton className="h-8 w-16 mb-1" />
+              ) : (
+                <div className="text-2xl font-bold">{stats.responseRate}%</div>
+              )}
               <p className="text-xs text-muted-foreground">
-                +2% from last month
+                Interview + offer rate
               </p>
             </CardContent>
           </Card>
           
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Active Resumes</CardTitle>
+              <CardTitle className="text-sm font-medium">Resumes</CardTitle>
               <FileText className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">3</div>
+              {loading ? (
+                <Skeleton className="h-8 w-16 mb-1" />
+              ) : (
+                <div className="text-2xl font-bold">{stats.activeResumes}</div>
+              )}
               <p className="text-xs text-muted-foreground">
-                Last updated 2 days ago
+                Available resumes
               </p>
             </CardContent>
           </Card>
@@ -101,43 +123,91 @@ export default function Dashboard() {
               </CardDescription>
             </CardHeader>
             <CardContent>
+              {error && (
+                <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg mb-4">
+                  <AlertCircle className="h-4 w-4 text-red-600" />
+                  <p className="text-sm text-red-700">{error}</p>
+                  <Button variant="outline" size="sm" onClick={refresh} className="ml-auto">
+                    Retry
+                  </Button>
+                </div>
+              )}
+              
               <div className="space-y-4">
-                {[
-                  { company: 'TechCorp', position: 'Senior Developer', status: 'pending', time: '2 hours ago' },
-                  { company: 'StartupXYZ', position: 'Full Stack Engineer', status: 'interview', time: '1 day ago' },
-                  { company: 'BigTech Inc', position: 'Software Engineer', status: 'applied', time: '3 days ago' },
-                  { company: 'Innovation Labs', position: 'Frontend Developer', status: 'rejected', time: '5 days ago' },
-                ].map((app, index) => (
-                  <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-secondary rounded-lg flex items-center justify-center">
-                          <Briefcase className="h-5 w-5" />
-                        </div>
-                        <div>
-                          <p className="font-medium">{app.position}</p>
-                          <p className="text-sm text-muted-foreground">{app.company}</p>
+                {loading ? (
+                  // Loading skeleton
+                  Array.from({ length: 3 }).map((_, index) => (
+                    <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3">
+                          <Skeleton className="w-10 h-10 rounded-lg" />
+                          <div>
+                            <Skeleton className="h-4 w-32 mb-2" />
+                            <Skeleton className="h-3 w-24" />
+                          </div>
                         </div>
                       </div>
+                      <div className="flex items-center gap-3">
+                        <Skeleton className="h-5 w-16" />
+                        <Skeleton className="h-3 w-20" />
+                      </div>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <Badge variant={
-                        app.status === 'pending' ? 'secondary' :
-                        app.status === 'interview' ? 'default' :
-                        app.status === 'applied' ? 'outline' :
-                        'destructive'
-                      }>
-                        {app.status}
-                      </Badge>
-                      <span className="text-sm text-muted-foreground">{app.time}</span>
-                    </div>
+                  ))
+                ) : recentApplications.length === 0 ? (
+                  // Empty state
+                  <div className="text-center py-8">
+                    <Briefcase className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                    <p className="text-muted-foreground mb-2">No applications yet</p>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      Start your job search by creating your first application
+                    </p>
+                    <Button onClick={handleNewApplication} size="sm">
+                      <Plus className="h-4 w-4 mr-2" />
+                      Create Application
+                    </Button>
                   </div>
-                ))}
+                ) : (
+                  // Real applications
+                  recentApplications.map((app) => (
+                    <div key={app.id} className="flex items-center justify-between p-3 border rounded-lg">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-secondary rounded-lg flex items-center justify-center">
+                            <Briefcase className="h-5 w-5" />
+                          </div>
+                          <div>
+                            <p className="font-medium">{app.position_title}</p>
+                            <p className="text-sm text-muted-foreground">{app.company_name}</p>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <Badge variant={
+                          app.status === 'pending' ? 'secondary' :
+                          app.status === 'interview' ? 'default' :
+                          app.status === 'applied' ? 'outline' :
+                          app.status === 'offer' ? 'default' :
+                          'destructive'
+                        }>
+                          {app.status}
+                        </Badge>
+                        <span className="text-sm text-muted-foreground">
+                          {formatRelativeTime(app.created_at)}
+                        </span>
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
-              <Button variant="outline" className="w-full mt-4">
-                View All Applications
-                <ArrowRight className="h-4 w-4 ml-2" />
-              </Button>
+              
+              {!loading && recentApplications.length > 0 && (
+                <Button asChild variant="outline" className="w-full mt-4">
+                  <Link href="/applications">
+                    View All Applications
+                    <ArrowRight className="h-4 w-4 ml-2" />
+                  </Link>
+                </Button>
+              )}
             </CardContent>
           </Card>
 
@@ -153,17 +223,23 @@ export default function Dashboard() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
-              <Button className="w-full justify-start gap-3">
-                <Plus className="h-4 w-4" />
-                Upload Resume
+              <Button asChild className="w-full justify-start gap-3">
+                <Link href="/resumes">
+                  <Plus className="h-4 w-4" />
+                  Upload Resume
+                </Link>
               </Button>
-              <Button variant="outline" className="w-full justify-start gap-3">
-                <Search className="h-4 w-4" />
-                Find Jobs
+              <Button asChild variant="outline" className="w-full justify-start gap-3">
+                <Link href="/jobs">
+                  <Search className="h-4 w-4" />
+                  Find Jobs
+                </Link>
               </Button>
-              <Button variant="outline" className="w-full justify-start gap-3">
-                <Brain className="h-4 w-4" />
-                AI Review
+              <Button asChild variant="outline" className="w-full justify-start gap-3">
+                <Link href="/ai-review">
+                  <Brain className="h-4 w-4" />
+                  AI Review
+                </Link>
               </Button>
               <Button 
                 variant="outline" 
