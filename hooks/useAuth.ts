@@ -1,6 +1,6 @@
 import { useEffect, useCallback, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
+import { createClient } from '@/lib/supabase/client'
 import { useAuthStore } from '@/store/auth'
 import { ensureUserExists } from '@/lib/supabase/user'
 
@@ -8,6 +8,7 @@ export const useAuth = () => {
   const { user, loading, setUser, setLoading } = useAuthStore()
   const [authError, setAuthError] = useState<string | null>(null)
   const router = useRouter()
+  const supabase = createClient()
 
   // Clear auth error
   const clearAuthError = useCallback(() => {
@@ -73,18 +74,26 @@ export const useAuth = () => {
     // Get initial session with better error handling
     const getSession = async () => {
       try {
+        console.log('🔄 [useAuth] Getting initial session...')
         const { data: { session }, error } = await supabase.auth.getSession()
         
+        console.log('📋 [useAuth] Session result:', {
+          hasSession: !!session,
+          userId: session?.user?.id || null,
+          error: error?.message || null
+        })
+        
         if (error) {
-          console.error('Initial session fetch failed:', error)
+          console.error('❌ [useAuth] Initial session fetch failed:', error)
           setAuthError('Failed to load authentication status')
           setUser(null)
         } else {
+          console.log('✅ [useAuth] Setting user:', session?.user ? { id: session.user.id, email: session.user.email } : null)
           setUser(session?.user ?? null)
           setAuthError(null)
         }
       } catch (error) {
-        console.error('Session initialization error:', error)
+        console.error('💥 [useAuth] Session initialization error:', error)
         setAuthError('Authentication system error')
         setUser(null)
       } finally {
@@ -101,7 +110,11 @@ export const useAuth = () => {
       async (event, session) => {
         if (!mounted) return
 
-        console.log('Auth state changed:', event, !!session)
+        console.log('🔄 [useAuth] Auth state changed:', event, {
+          hasSession: !!session,
+          userId: session?.user?.id || null,
+          eventType: event
+        })
         
         try {
           const user = session?.user ?? null

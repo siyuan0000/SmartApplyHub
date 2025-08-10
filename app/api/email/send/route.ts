@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getAuthenticatedUser } from '@/lib/supabase/api'
+import { getAuthenticatedUser, createAuthenticatedResponse } from '@/lib/supabase/api'
 import { EmailService } from '@/lib/email/service'
 
 // POST /api/email/send - Send email
 export async function POST(request: NextRequest) {
   try {
+    // Create response object to handle cookies properly
+    const response = NextResponse.next()
+    
     const body = await request.json()
     const { to, subject, body: emailBody, jobApplicationId } = body
 
@@ -28,7 +31,7 @@ export async function POST(request: NextRequest) {
     
     // Try to get user ID but don't fail if authentication fails
     try {
-      const user = await getAuthenticatedUser(request)
+      const user = await getAuthenticatedUser(request, response)
       userId = user.id
     } catch {
       console.log('No authentication, will use env config only')
@@ -43,11 +46,11 @@ export async function POST(request: NextRequest) {
       jobApplicationId
     })
 
-    return NextResponse.json({ 
+    return createAuthenticatedResponse({ 
       message: 'Email sent successfully',
       to,
       subject
-    })
+    }, response)
   } catch (error) {
     console.error('API error:', error)
     return NextResponse.json(

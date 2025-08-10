@@ -1,4 +1,4 @@
-import { createServerComponentClient } from '@/lib/supabase/server'
+import { supabaseAdmin } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 
 export async function GET(
@@ -6,7 +6,8 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const supabase = await createServerComponentClient()
+    // Use admin client for public job data - no authentication required
+    const supabase = supabaseAdmin
     const resolvedParams = await params
     
     const { data: job, error } = await supabase

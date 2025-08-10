@@ -24,11 +24,11 @@ import {
   X,
   Lightbulb,
   Send,
+  Globe,
 } from "lucide-react";
 import { useApplicationWorkflowStore } from "@/store/application-workflow";
 import { AIGeneratedEmail } from "@/lib/ai/email-generator";
 import { useAuth } from "@/hooks/useAuth";
-import { SendEmailModal } from "@/components/email/SendEmailModal";
 
 export function EmailGenerationStep() {
   const {
@@ -140,7 +140,7 @@ export function EmailGenerationStep() {
           keypoints: [],
           tone: emailOptions.tone,
         };
-        
+
         let updateTimer: NodeJS.Timeout | null = null;
         let pendingUpdate = { ...currentEmail };
         let hasSubject = false;
@@ -180,7 +180,7 @@ export function EmailGenerationStep() {
                     setGeneratedEmail({ ...pendingUpdate });
                     setIsContentReady(true);
                   }
-                  
+
                   // Handle body chunks (progressive updates)
                   else if (data.bodyChunk) {
                     pendingUpdate.body = data.bodyChunk;
@@ -188,7 +188,7 @@ export function EmailGenerationStep() {
                     if (updateTimer) clearTimeout(updateTimer);
                     updateTimer = setTimeout(applyUpdate, 50);
                   }
-                  
+
                   // Handle complete body (when separator is found)
                   else if (data.body && !hasCompleteBody) {
                     pendingUpdate.body = data.body;
@@ -196,14 +196,14 @@ export function EmailGenerationStep() {
                     if (updateTimer) clearTimeout(updateTimer);
                     updateTimer = setTimeout(applyUpdate, 50);
                   }
-                  
+
                   // Handle keypoints
                   else if (data.keypoints) {
                     pendingUpdate.keypoints = data.keypoints;
                     if (updateTimer) clearTimeout(updateTimer);
                     updateTimer = setTimeout(applyUpdate, 50);
                   }
-                  
+
                   // Handle complete email data (final structure)
                   else if (data.email) {
                     pendingUpdate = {
@@ -250,6 +250,7 @@ export function EmailGenerationStep() {
     } finally {
       setGeneratingEmail(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     selectedJob,
     selectedResume,
@@ -275,7 +276,7 @@ export function EmailGenerationStep() {
     setGeneratingEmail(true);
     setError(null);
     setIsContentReady(false);
-    
+
     // Keep existing content visible during enhancement
     // The streaming will update it smoothly
 
@@ -355,6 +356,9 @@ export function EmailGenerationStep() {
     setEmailOptions({ includeAttachments });
   };
 
+  const handleLanguageChange = (language: "english" | "chinese") => {
+    setEmailOptions({ language });
+  };
 
   if (!selectedJob || !selectedResume) {
     return (
@@ -471,6 +475,37 @@ export function EmailGenerationStep() {
           </div>
 
           <div>
+            <Label className="flex items-center gap-2 mb-2">
+              <Globe className="h-4 w-4" />
+              Language
+            </Label>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant={
+                  emailOptions.language === "english" ? "default" : "outline"
+                }
+                size="sm"
+                onClick={() => handleLanguageChange("english")}
+                className="flex-1"
+              >
+                English
+              </Button>
+              <Button
+                type="button"
+                variant={
+                  emailOptions.language === "chinese" ? "default" : "outline"
+                }
+                size="sm"
+                onClick={() => handleLanguageChange("chinese")}
+                className="flex-1"
+              >
+                中文 (Chinese)
+              </Button>
+            </div>
+          </div>
+
+          <div>
             <Label htmlFor="instructions">
               Additional Instructions (Optional)
             </Label>
@@ -515,43 +550,35 @@ export function EmailGenerationStep() {
       {/* Generated Email */}
       {generatedEmail && (
         <Card>
-          <CardHeader>
+          <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
-              <CardTitle className="flex items-center space-x-2">
-                {isGeneratingEmail ? (
-                  <>
-                    <Loader2 className="h-5 w-5 text-blue-600 animate-spin" />
-                    <span>Generating Application Email...</span>
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle className="h-5 w-5 text-green-600" />
-                    <span>Generated Application Email</span>
-                  </>
-                )}
-              </CardTitle>
               <div className="flex items-center space-x-2">
+                {isGeneratingEmail ? (
+                  <Loader2 className="h-5 w-5 text-blue-600 animate-spin" />
+                ) : (
+                  <CheckCircle className="h-5 w-5 text-green-600" />
+                )}
                 <Badge variant="outline" className="capitalize">
                   {generatedEmail.tone}
                 </Badge>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setIsEditing(!isEditing)}
-                >
-                  {isEditing ? (
-                    <>
-                      <X className="h-3 w-3 mr-1" />
-                      Cancel
-                    </>
-                  ) : (
-                    <>
-                      <Edit className="h-3 w-3 mr-1" />
-                      Edit
-                    </>
-                  )}
-                </Button>
               </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsEditing(!isEditing)}
+              >
+                {isEditing ? (
+                  <>
+                    <X className="h-3 w-3 mr-1" />
+                    Cancel
+                  </>
+                ) : (
+                  <>
+                    <Edit className="h-3 w-3 mr-1" />
+                    Edit
+                  </>
+                )}
+              </Button>
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -589,7 +616,9 @@ export function EmailGenerationStep() {
                     generatedEmail.subject
                   ) : (
                     <span className="text-muted-foreground">
-                      {isGeneratingEmail ? "Generating subject..." : "Waiting for email..."}
+                      {isGeneratingEmail
+                        ? "Generating subject..."
+                        : "Waiting for email..."}
                     </span>
                   )}
                 </div>
@@ -630,7 +659,9 @@ export function EmailGenerationStep() {
                     generatedEmail.body
                   ) : (
                     <span className="text-muted-foreground">
-                      {isGeneratingEmail ? "Generating email content..." : "Waiting for email..."}
+                      {isGeneratingEmail
+                        ? "Generating email content..."
+                        : "Waiting for email..."}
                     </span>
                   )}
                 </div>
@@ -646,19 +677,6 @@ export function EmailGenerationStep() {
                 <Button onClick={saveEdits}>
                   <Save className="h-3 w-3 mr-1" />
                   Save Changes
-                </Button>
-              </div>
-            )}
-
-            {/* Send Email Button */}
-            {!isEditing && (
-              <div className="flex justify-end space-x-2 pt-4 border-t">
-                <Button
-                  onClick={() => setSendEmailModalOpen(true)}
-                  className="bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 text-white"
-                >
-                  <Send className="h-4 w-4 mr-2" />
-                  Send Email
                 </Button>
               </div>
             )}
@@ -719,18 +737,6 @@ export function EmailGenerationStep() {
           </CardContent>
         </Card>
       )}
-
-      {/* Send Email Modal */}
-      <SendEmailModal
-        open={sendEmailModalOpen}
-        onOpenChange={setSendEmailModalOpen}
-        initialTo=""
-        initialSubject={generatedEmail?.subject || ""}
-        initialBody={generatedEmail?.body || ""}
-        onEmailSent={() => {
-          // Optionally refresh email logs or show success message
-        }}
-      />
     </div>
   );
 }

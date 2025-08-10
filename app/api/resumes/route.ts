@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getAuthenticatedUser, createApiClient } from '@/lib/supabase/api'
+import { getAuthenticatedUser, createApiClient, createAuthenticatedResponse } from '@/lib/supabase/api'
 
 // GET /api/resumes - Fetch user's resumes
 export async function GET(request: NextRequest) {
@@ -11,8 +11,14 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '50')
     
     // Authenticate user
-    const user = await getAuthenticatedUser(request)
-    const supabase = await createApiClient(request)
+    // Create response object to handle cookies properly
+
+    const response = NextResponse.next()
+
+    
+
+    const user = await getAuthenticatedUser(request, response)
+    const supabase = createApiClient(request, response)
     
     // Build the query
     let queryBuilder = supabase
@@ -88,8 +94,14 @@ export async function POST(request: NextRequest) {
     }
 
     // Authenticate user
-    const user = await getAuthenticatedUser(request)
-    const supabase = await createApiClient(request)
+    // Create response object to handle cookies properly
+
+    const response = NextResponse.next()
+
+    
+
+    const user = await getAuthenticatedUser(request, response)
+    const supabase = createApiClient(request, response)
 
     // Create resume
     const resumeData = {
@@ -119,7 +131,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    return NextResponse.json({ resume }, { status: 201 })
+    return createAuthenticatedResponse({ resume }, response, { status: 201 })
   } catch (error) {
     console.error('API error:', error)
     return NextResponse.json(

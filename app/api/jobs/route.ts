@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { supabaseAdmin } from '@/lib/supabase/server'
 
 export async function GET(request: NextRequest) {
   try {
@@ -13,7 +14,7 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get('page') || '1')
     const limit = parseInt(searchParams.get('limit') || '20')
     
-    const { supabaseAdmin } = await import('@/lib/supabase/server')
+    // Use admin client for public job data - no authentication required
     const supabase = supabaseAdmin
     
     // Start building the query
@@ -86,7 +87,7 @@ export async function GET(request: NextRequest) {
     }
     
     // Build the same query for counting (without pagination)
-    let countQueryBuilder = supabaseAdmin
+    let countQueryBuilder = supabase
       .from('job_postings')
       .select('*', { count: 'exact', head: true })
     

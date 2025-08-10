@@ -18,6 +18,7 @@ interface GenerateEmailRequest {
     tone?: "professional" | "friendly" | "formal";
     includeAttachments?: boolean;
     customInstructions?: string;
+    language?: "english" | "chinese";
   };
   stream?: boolean;
 }

@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { OpenAIService } from '@/lib/ai/openai'
-import { getAuthenticatedUser, createApiClient } from '@/lib/supabase/api'
+import { getAuthenticatedUser, createApiClient, createAuthenticatedResponse } from '@/lib/supabase/api'
 
 export async function POST(request: NextRequest) {
   try {
+    // Create response object to handle cookies properly
+    const response = NextResponse.next()
+    
     const { resumeId, jobDescription } = await request.json()
 
     if (!resumeId) {
@@ -11,8 +14,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Authenticate user
-    const user = await getAuthenticatedUser(request)
-    const supabase = await createApiClient(request)
+    const user = await getAuthenticatedUser(request, response)
+    const supabase = createApiClient(request, response)
 
     // Get resume data
     const { data: resume, error: resumeError } = await supabase
@@ -23,7 +26,7 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (resumeError || !resume) {
-      return NextResponse.json({ error: 'Resume not found' }, { status: 404 })
+      return createAuthenticatedResponse({ error: 'Resume not found' }, response, { status: 404 })
     }
 
     // Analyze resume for ATS compatibility
@@ -45,7 +48,7 @@ export async function POST(request: NextRequest) {
       // Don't fail the request if we can't save to DB
     }
 
-    return NextResponse.json({ analysis })
+    return createAuthenticatedResponse({ analysis }, response)
   } catch (error) {
     console.error('ATS analysis failed:', error)
     return NextResponse.json(

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getAuthenticatedUser, createApiClient } from '@/lib/supabase/api'
+import { getAuthenticatedUser, createApiClient, createAuthenticatedResponse } from '@/lib/supabase/api'
 import { Database } from '@/types/database.types'
 
 type ResumeUpdate = Database['public']['Tables']['resumes']['Update']
@@ -20,8 +20,14 @@ export async function GET(
     }
 
     // Authenticate user
-    const user = await getAuthenticatedUser(request)
-    const supabase = await createApiClient(request)
+    // Create response object to handle cookies properly
+
+    const response = NextResponse.next()
+
+    
+
+    const user = await getAuthenticatedUser(request, response)
+    const supabase = createApiClient(request, response)
 
     // Get resume
     const { data: resume, error } = await supabase
@@ -46,7 +52,7 @@ export async function GET(
       )
     }
 
-    return NextResponse.json({ resume })
+    return createAuthenticatedResponse({ resume }, response)
   } catch (error) {
     console.error('API error:', error)
     return NextResponse.json(
@@ -73,8 +79,14 @@ export async function PATCH(
     }
 
     // Authenticate user
-    const user = await getAuthenticatedUser(request)
-    const supabase = await createApiClient(request)
+    // Create response object to handle cookies properly
+
+    const response = NextResponse.next()
+
+    
+
+    const user = await getAuthenticatedUser(request, response)
+    const supabase = createApiClient(request, response)
 
     // Build update data - only include fields that are provided
     const updateData: ResumeUpdate = {}
@@ -112,7 +124,7 @@ export async function PATCH(
       )
     }
 
-    return NextResponse.json({ resume })
+    return createAuthenticatedResponse({ resume }, response)
   } catch (error) {
     console.error('API error:', error)
     return NextResponse.json(

@@ -1,9 +1,9 @@
-import { supabase } from '@/lib/supabase'
+import { supabaseLegacy } from '@/lib/supabase/legacy'
 
 export async function ensureTablesExist(): Promise<void> {
   try {
     // Test if tables exist by querying them
-    const { error } = await supabase.from('resumes').select('count', { count: 'exact', head: true })
+    const { error } = await supabaseLegacy.from('resumes').select('count', { count: 'exact', head: true })
     
     if (error && error.code === '42P01') {
       // Table doesn't exist, we need to create it

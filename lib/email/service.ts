@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/supabase'
+import { supabaseLegacy } from '@/lib/supabase/legacy'
 import { Database } from '@/types/database.types'
 import { createCipheriv, createDecipheriv, randomBytes } from 'crypto'
 
@@ -104,7 +104,7 @@ export class EmailService {
     }
 
     // Check if config already exists
-    const { data: existing } = await supabase
+    const { data: existing } = await supabaseLegacy
       .from('email_settings')
       .select('id')
       .eq('user_id', userId)
@@ -112,7 +112,7 @@ export class EmailService {
 
     if (existing) {
       // Update existing
-      const { data, error } = await supabase
+      const { data, error } = await supabaseLegacy
         .from('email_settings')
         .update({
           email_address: config.email_address,
@@ -132,7 +132,7 @@ export class EmailService {
       return data
     } else {
       // Create new
-      const { data, error } = await supabase
+      const { data, error } = await supabaseLegacy
         .from('email_settings')
         .insert(emailSettings)
         .select()
@@ -149,7 +149,7 @@ export class EmailService {
    * Get user's email configuration
    */
   static async getEmailConfig(userId: string): Promise<EmailConfig | null> {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseLegacy
       .from('email_settings')
       .select('*')
       .eq('user_id', userId)
@@ -228,7 +228,7 @@ export class EmailService {
         status: 'pending'
       }
 
-      const { data, error: logError } = await supabase
+      const { data, error: logError } = await supabaseLegacy
         .from('email_logs')
         .insert(emailLog)
         .select()
@@ -273,7 +273,7 @@ export class EmailService {
 
       // Update log status to sent
       if (logEntry) {
-        await supabase
+        await supabaseLegacy
           .from('email_logs')
           .update({
             status: 'sent',
@@ -285,7 +285,7 @@ export class EmailService {
     } catch (error) {
       // Update log status to failed
       if (logEntry) {
-        await supabase
+        await supabaseLegacy
           .from('email_logs')
           .update({
             status: 'failed',
@@ -302,7 +302,7 @@ export class EmailService {
    * Get email logs for a user
    */
   static async getEmailLogs(userId: string, limit: number = 50): Promise<EmailLogRow[]> {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseLegacy
       .from('email_logs')
       .select('*')
       .eq('user_id', userId)
@@ -320,7 +320,7 @@ export class EmailService {
    * Delete user's email configuration
    */
   static async deleteEmailConfig(userId: string): Promise<void> {
-    const { error } = await supabase
+    const { error } = await supabaseLegacy
       .from('email_settings')
       .delete()
       .eq('user_id', userId)

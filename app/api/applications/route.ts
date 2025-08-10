@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getAuthenticatedUser, createApiClient } from '@/lib/supabase/api'
+import { getAuthenticatedUser, createApiClient, createAuthenticatedResponse } from '@/lib/supabase/api'
 import { Database } from '@/types/database.types'
 
 type JobApplication = Database['public']['Tables']['job_applications']['Row']
@@ -9,6 +9,8 @@ type JobApplicationUpdate = Database['public']['Tables']['job_applications']['Up
 // GET /api/applications - Fetch user's applications with pagination and filtering
 export async function GET(request: NextRequest) {
   try {
+    console.log('📋 [Applications API] Starting request...')
+    
     const { searchParams } = new URL(request.url)
     
     // Get search parameters
@@ -17,9 +19,17 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get('page') || '1')
     const limit = parseInt(searchParams.get('limit') || '20')
     
-    // Authenticate user
-    const user = await getAuthenticatedUser(request)
-    const supabase = await createApiClient(request)
+    console.log('🔍 [Applications API] Request params:', { status, company, page, limit })
+    
+    // Create response object to handle cookies properly
+    const response = NextResponse.next()
+    
+    // Authenticate user with response for cookie handling
+    console.log('🔐 [Applications API] Attempting authentication...')
+    const user = await getAuthenticatedUser(request, response)
+    console.log('✅ [Applications API] User authenticated:', { userId: user.id, email: user.email })
+    
+    const supabase = createApiClient(request, response)
     
     // Start building the query
     let queryBuilder = supabase
@@ -80,7 +90,7 @@ export async function GET(request: NextRequest) {
     
     const { count: totalCount } = await countQueryBuilder
     
-    return NextResponse.json({
+    return createAuthenticatedResponse({
       applications: applications || [],
       pagination: {
         page,
@@ -88,7 +98,7 @@ export async function GET(request: NextRequest) {
         total: totalCount || 0,
         pages: Math.ceil((totalCount || 0) / limit)
       }
-    })
+    }, response)
   } catch (error) {
     console.error('API error:', error)
     return NextResponse.json(
@@ -117,9 +127,12 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Authenticate user
-    const user = await getAuthenticatedUser(request)
-    const supabase = await createApiClient(request)
+    // Create response object to handle cookies properly
+    const response = NextResponse.next()
+    
+    // Authenticate user with response for cookie handling
+    const user = await getAuthenticatedUser(request, response)
+    const supabase = createApiClient(request, response)
 
     // If job_posting_id is provided, validate it exists
     if (job_posting_id) {
@@ -173,7 +186,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    return NextResponse.json({ application }, { status: 201 })
+    return createAuthenticatedResponse({ application }, response, { status: 201 })
   } catch (error) {
     console.error('API error:', error)
     return NextResponse.json(
@@ -201,9 +214,12 @@ export async function PUT(request: NextRequest) {
       )
     }
 
-    // Authenticate user
-    const user = await getAuthenticatedUser(request)
-    const supabase = await createApiClient(request)
+    // Create response object to handle cookies properly
+    const response = NextResponse.next()
+    
+    // Authenticate user with response for cookie handling
+    const user = await getAuthenticatedUser(request, response)
+    const supabase = createApiClient(request, response)
 
     // Build update data
     const updateData: JobApplicationUpdate = {}
@@ -252,7 +268,7 @@ export async function PUT(request: NextRequest) {
       )
     }
 
-    return NextResponse.json({ application })
+    return createAuthenticatedResponse({ application }, response)
   } catch (error) {
     console.error('API error:', error)
     return NextResponse.json(
@@ -275,9 +291,12 @@ export async function DELETE(request: NextRequest) {
       )
     }
 
-    // Authenticate user
-    const user = await getAuthenticatedUser(request)
-    const supabase = await createApiClient(request)
+    // Create response object to handle cookies properly
+    const response = NextResponse.next()
+    
+    // Authenticate user with response for cookie handling
+    const user = await getAuthenticatedUser(request, response)
+    const supabase = createApiClient(request, response)
 
     // Delete application (with RLS ensuring user can only delete their own)
     const { error } = await supabase
@@ -294,7 +313,7 @@ export async function DELETE(request: NextRequest) {
       )
     }
 
-    return NextResponse.json({ success: true })
+    return createAuthenticatedResponse({ success: true }, response)
   } catch (error) {
     console.error('API error:', error)
     return NextResponse.json(

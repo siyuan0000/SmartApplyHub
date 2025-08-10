@@ -1,15 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getAuthenticatedUser } from '@/lib/supabase/api'
+import { getAuthenticatedUser, createApiClient, createAuthenticatedResponse } from '@/lib/supabase/api'
 import { EmailService, type EmailConfig } from '@/lib/email/service'
 
 // GET /api/email/config - Get user's email configuration
 export async function GET(request: NextRequest) {
   try {
+    // Create response object to handle cookies properly
+    const response = NextResponse.next()
+    
     let userId: string | undefined = undefined
     
     // Try to get user ID but don't fail if authentication fails
     try {
-      const user = await getAuthenticatedUser(request)
+      const user = await getAuthenticatedUser(request, response)
       userId = user.id
     } catch {
       console.log('No authentication, will use env config only')
@@ -19,7 +22,7 @@ export async function GET(request: NextRequest) {
     const config = await EmailService.getEffectiveEmailConfig(userId)
     
     if (!config) {
-      return NextResponse.json({ config: null })
+      return createAuthenticatedResponse({ config: null }, response)
     }
 
     // Return config without password for security
@@ -32,7 +35,7 @@ export async function GET(request: NextRequest) {
       from_env: !userId || (!process.env.EMAIL_ACCOUNT ? false : true)
     }
 
-    return NextResponse.json({ config: safeConfig })
+    return createAuthenticatedResponse({ config: safeConfig }, response)
   } catch (error) {
     console.error('API error:', error)
     return NextResponse.json(
@@ -45,6 +48,9 @@ export async function GET(request: NextRequest) {
 // POST /api/email/config - Save or update email configuration
 export async function POST(request: NextRequest) {
   try {
+    // Create response object to handle cookies properly
+    const response = NextResponse.next()
+    
     const body = await request.json()
     const { email_address, email_password, smtp_host, smtp_port, use_tls } = body
 
@@ -65,7 +71,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Authenticate user
-    const user = await getAuthenticatedUser(request)
+    const user = await getAuthenticatedUser(request, response)
 
     const config: EmailConfig = {
       email_address,
@@ -108,13 +114,16 @@ export async function POST(request: NextRequest) {
 // DELETE /api/email/config - Delete email configuration
 export async function DELETE(request: NextRequest) {
   try {
+    // Create response object to handle cookies properly
+    const response = NextResponse.next()
+    
     // Authenticate user
-    const user = await getAuthenticatedUser(request)
+    const user = await getAuthenticatedUser(request, response)
     
     // Delete configuration
     await EmailService.deleteEmailConfig(user.id)
 
-    return NextResponse.json({ message: 'Email configuration deleted successfully' })
+    return createAuthenticatedResponse({ message: 'Email configuration deleted successfully' }, response)
   } catch (error) {
     console.error('API error:', error)
     return NextResponse.json(

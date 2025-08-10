@@ -177,16 +177,6 @@ export function ResumeSelectionStep() {
 
   return (
     <div className="space-y-6">
-      {/* Instructions */}
-      <div className="text-center">
-        <h3 className="text-lg font-medium text-foreground mb-2">
-          Choose Your Resume
-        </h3>
-        <p className="text-sm text-muted-foreground">
-          Select the resume you want to use for this job application
-        </p>
-      </div>
-
       {/* Error */}
       {error && (
         <div className="p-4 bg-red-50 border border-red-200 rounded-lg">

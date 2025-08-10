@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getAuthenticatedUser, createApiClient } from '@/lib/supabase/api'
+import { getAuthenticatedUser, createApiClient, createAuthenticatedResponse } from '@/lib/supabase/api'
 
 export async function GET(request: NextRequest) {
   try {
     console.log('=== Auth Debug Endpoint ===')
+    
+    // Create response object to handle cookies properly
+    const response = NextResponse.next()
     
     // Check if we have any cookies at all
     const cookies = request.cookies
@@ -17,7 +20,7 @@ export async function GET(request: NextRequest) {
     console.log('Supabase-related cookies:', supabaseCookies)
 
     // Try to create API client and get session
-    const supabase = createApiClient(request)
+    const supabase = createApiClient(request, response)
     const { data: { session }, error: sessionError } = await supabase.auth.getSession()
     
     console.log('Session error:', sessionError)
@@ -30,7 +33,7 @@ export async function GET(request: NextRequest) {
     // Try to authenticate user
     let authResult;
     try {
-      const user = await getAuthenticatedUser(request)
+      const user = await getAuthenticatedUser(request, response)
       authResult = {
         success: true,
         userId: user.id,
@@ -44,7 +47,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({
+    return createAuthenticatedResponse({
       timestamp: new Date().toISOString(),
       cookies: {
         total: cookieNames.length,
@@ -63,7 +66,7 @@ export async function GET(request: NextRequest) {
         hasSupabaseAnonKey: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
         hasOpenAIKey: !!process.env.OPENAI_API_KEY
       }
-    })
+    }, response)
 
   } catch (error) {
     console.error('Debug endpoint error:', error)

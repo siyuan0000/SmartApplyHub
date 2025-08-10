@@ -1,4 +1,5 @@
-import { supabase } from '@/lib/supabase'
+import { supabaseLegacy } from '@/lib/supabase/legacy'
+import { createClient } from '@/lib/supabase/client'
 import { Database } from '@/types/database.types'
 import { ResumeContent } from './parser'
 import { getCurrentUserProfile } from '@/lib/supabase/user'
@@ -48,7 +49,7 @@ export class ResumeService {
     }
 
 
-    const { data: resume, error } = await supabase
+    const { data: resume, error } = await supabaseLegacy
       .from('resumes')
       .insert(insertData)
       .select()
@@ -76,7 +77,7 @@ export class ResumeService {
       updated_at: new Date().toISOString()
     }
 
-    const { data: resume, error } = await supabase
+    const { data: resume, error } = await supabaseLegacy
       .from('resumes')
       .update(updateData)
       .eq('id', id)
@@ -91,6 +92,9 @@ export class ResumeService {
   }
 
   static async getUserResumes(userId: string): Promise<ResumeRow[]> {
+    // Use the proper client context for consistency with the auth session
+    const supabase = createClient()
+    
     const { data: resumes, error } = await supabase
       .from('resumes')
       .select('*')
@@ -108,7 +112,7 @@ export class ResumeService {
   }
 
   static async getResume(id: string): Promise<ResumeRow | null> {
-    const { data: resume, error } = await supabase
+    const { data: resume, error } = await supabaseLegacy
       .from('resumes')
       .select('*')
       .eq('id', id)
@@ -148,7 +152,7 @@ export class ResumeService {
     }
 
     // Delete the resume record from the database
-    const { error } = await supabase
+    const { error } = await supabaseLegacy
       .from('resumes')
       .delete()
       .eq('id', id)
@@ -160,7 +164,7 @@ export class ResumeService {
 
   static async setActiveResume(id: string, userId: string): Promise<void> {
     // First, set all resumes to inactive
-    const { error: deactivateError } = await supabase
+    const { error: deactivateError } = await supabaseLegacy
       .from('resumes')
       .update({ is_active: false })
       .eq('user_id', userId)
@@ -170,7 +174,7 @@ export class ResumeService {
     }
 
     // Then, set the specific resume to active
-    const { error: activateError } = await supabase
+    const { error: activateError } = await supabaseLegacy
       .from('resumes')
       .update({ is_active: true })
       .eq('id', id)
@@ -198,7 +202,7 @@ export class ResumeService {
       is_active: false
     }
 
-    const { data: duplicate, error } = await supabase
+    const { data: duplicate, error } = await supabaseLegacy
       .from('resumes')
       .insert(duplicateData)
       .select()
@@ -235,7 +239,7 @@ export class ResumeService {
     active: number
     lastUpdated: string | null
   }> {
-    const { data: resumes, error } = await supabase
+    const { data: resumes, error } = await supabaseLegacy
       .from('resumes')
       .select('is_active, updated_at')
       .eq('user_id', userId)

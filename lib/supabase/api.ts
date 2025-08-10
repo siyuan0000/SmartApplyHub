@@ -1,10 +1,15 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
-import { NextRequest } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 
 /**
  * Creates a Supabase server client for API routes with proper request-based cookie handling
  */
-export function createApiClient(request: NextRequest) {
+export function createApiClient(
+  request: NextRequest,
+  response?: NextResponse
+) {
+  const responseToUse = response || NextResponse.next()
+  
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -13,16 +18,13 @@ export function createApiClient(request: NextRequest) {
         get(name: string) {
           return request.cookies.get(name)?.value
         },
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        set(_name: string, _value: string, _options: CookieOptions) {
-          // API routes handle cookie setting differently - this is handled by middleware
-          // We include this for completeness but it won't be used in practice
-          console.warn('Cookie setting in API routes should be handled by middleware')
+        set(name: string, value: string, options: CookieOptions) {
+          // Set cookie on response for proper handling
+          responseToUse.cookies.set({ name, value, ...options })
         },
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        remove(_name: string, _options: CookieOptions) {
-          // API routes handle cookie removal differently - this is handled by middleware
-          console.warn('Cookie removal in API routes should be handled by middleware')
+        remove(name: string, options: CookieOptions) {
+          // Remove cookie from response
+          responseToUse.cookies.set({ name, value: '', ...options })
         },
       },
     }
@@ -33,20 +35,44 @@ export function createApiClient(request: NextRequest) {
  * Gets the authenticated user from the API request
  * Returns the user if authenticated, throws error with details if not
  */
-export async function getAuthenticatedUser(request: NextRequest) {
+export async function getAuthenticatedUser(
+  request: NextRequest,
+  response?: NextResponse
+) {
   try {
-    const supabase = createApiClient(request)
+    console.log('🔐 [Auth] Starting authentication check...')
+    
+    // Debug: Log cookie information
+    const cookies = request.cookies.getAll()
+    const cookieNames = cookies.map(c => c.name)
+    const supabaseCookies = cookies.filter(c => c.name.includes('sb-'))
+    
+    console.log('🍪 [Auth] Request cookies:', {
+      total: cookies.length,
+      names: cookieNames,
+      supabaseCount: supabaseCookies.length,
+      supabaseCookies: supabaseCookies.map(c => ({ name: c.name, hasValue: !!c.value }))
+    })
+    
+    const supabase = createApiClient(request, response)
     
     // First try to get the session to check if we have valid auth cookies
     const { data: { session }, error: sessionError } = await supabase.auth.getSession()
     
+    console.log('📋 [Auth] Session check result:', {
+      hasSession: !!session,
+      sessionError: sessionError?.message || null,
+      userId: session?.user?.id || null,
+      expiresAt: session?.expires_at || null
+    })
+    
     if (sessionError) {
-      console.error('Session error:', sessionError)
+      console.error('❌ [Auth] Session error:', sessionError)
       throw new Error(`Session error: ${sessionError.message}`)
     }
     
     if (!session) {
-      console.error('No session found in request cookies')
+      console.error('❌ [Auth] No session found in request cookies')
       throw new Error('No active session found. Please log in.')
     }
     
@@ -83,9 +109,31 @@ export async function getAuthenticatedUser(request: NextRequest) {
  * Validates that a user is authenticated and returns both user and supabase client
  * Useful for API routes that need both the user and client
  */
-export async function getAuthenticatedUserAndClient(request: NextRequest) {
-  const user = await getAuthenticatedUser(request)
-  const supabase = createApiClient(request)
+export async function getAuthenticatedUserAndClient(
+  request: NextRequest,
+  response?: NextResponse
+) {
+  const user = await getAuthenticatedUser(request, response)
+  const supabase = createApiClient(request, response)
   
   return { user, supabase }
+}
+
+/**
+ * Helper function to create a JSON response with proper cookie handling
+ * Use this to ensure cookies are properly copied from the auth response
+ */
+export function createAuthenticatedResponse(
+  data: any,
+  response: NextResponse,
+  init?: ResponseInit
+): NextResponse {
+  const jsonResponse = NextResponse.json(data, init)
+  
+  // Copy all cookies from the auth response to the final response
+  response.cookies.getAll().forEach(cookie => {
+    jsonResponse.cookies.set(cookie)
+  })
+  
+  return jsonResponse
 }

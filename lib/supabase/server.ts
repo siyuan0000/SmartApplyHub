@@ -1,37 +1,48 @@
-import { createServerClient, type CookieOptions } from "@supabase/ssr";
-import { createClient } from "@supabase/supabase-js";
-import { cookies } from "next/headers";
+import { createServerClient } from '@supabase/ssr'
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+import { cookies } from 'next/headers'
 
 /**
- * Creates a Supabase server client for Server Components with proper SSR cookie handling
+ * Creates a Supabase server client following the official SSR pattern
+ * This handles cookie-based sessions automatically
  */
-export async function createServerComponentClient() {
-  const cookieStore = await cookies();
+export async function createClient() {
+  const cookieStore = await cookies()
 
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        get(name: string) {
-          return cookieStore.get(name)?.value;
+        getAll() {
+          return cookieStore.getAll()
         },
-        set(name: string, value: string, options: CookieOptions) {
-          cookieStore.set({ name, value, ...options });
-        },
-        remove(name: string, options: CookieOptions) {
-          cookieStore.set({ name, value: "", ...options });
+        setAll(cookiesToSet) {
+          try {
+            cookiesToSet.forEach(({ name, value, options }) =>
+              cookieStore.set(name, value, options)
+            )
+          } catch {
+            // The `setAll` method was called from a Server Component.
+            // This can be ignored if you have middleware refreshing
+            // user sessions.
+          }
         },
       },
     }
-  );
+  )
 }
 
 /**
- * Creates a Supabase admin client with service role key for server-side operations
- * Use this for operations that require elevated permissions
+ * Legacy function name for backward compatibility
  */
-export const supabaseAdmin = createClient(
+export const createServerComponentClient = createClient;
+
+/**
+ * Creates a Supabase admin client with service role key for server-side operations
+ * Use this for operations that require elevated permissions (public data, admin tasks)
+ */
+export const supabaseAdmin = createSupabaseClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
   {
@@ -42,8 +53,8 @@ export const supabaseAdmin = createClient(
   }
 );
 
-// Legacy export for backward compatibility - prefer using createServerComponentClient()
-export const supabaseServer = createClient(
+// Legacy export for backward compatibility - prefer using createClient()
+export const supabaseServer = createSupabaseClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );

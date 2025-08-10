@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Brain, Github, Mail } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
+import { createClient } from '@/lib/supabase/client'
 
 export default function Login() {
   const [email, setEmail] = useState('')
@@ -15,6 +15,7 @@ export default function Login() {
   const [isLoading, setIsLoading] = useState(false)
   const [isSignUp, setIsSignUp] = useState(false)
   const router = useRouter()
+  const supabase = createClient()
 
   const handleEmailAuth = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -48,7 +49,7 @@ export default function Login() {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/dashboard`
+          redirectTo: `${window.location.origin}/api/auth/callback`
         }
       })
       if (error) throw error
@@ -62,7 +63,7 @@ export default function Login() {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'github',
         options: {
-          redirectTo: `${window.location.origin}/dashboard`
+          redirectTo: `${window.location.origin}/api/auth/callback`
         }
       })
       if (error) throw error

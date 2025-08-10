@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { OpenAIService } from '@/lib/ai/openai'
-import { getAuthenticatedUser, createApiClient } from '@/lib/supabase/api'
+import { getAuthenticatedUser, createApiClient, createAuthenticatedResponse } from '@/lib/supabase/api'
 
 export async function POST(request: NextRequest) {
   try {
+    // Create response object to handle cookies properly
+    const response = NextResponse.next()
+    
     const { resumeId, jobDescription } = await request.json()
 
     if (!resumeId || !jobDescription) {
@@ -11,8 +14,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Authenticate user
-    const user = await getAuthenticatedUser(request)
-    const supabase = await createApiClient(request)
+    const user = await getAuthenticatedUser(request, response)
+    const supabase = createApiClient(request, response)
 
     // Get resume data
     const { data: resume, error: resumeError } = await supabase
@@ -23,13 +26,13 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (resumeError || !resume) {
-      return NextResponse.json({ error: 'Resume not found' }, { status: 404 })
+      return createAuthenticatedResponse({ error: 'Resume not found' }, response, { status: 404 })
     }
 
     // Get keyword suggestions
     const keywords = await OpenAIService.generateKeywordSuggestions(resume.content, jobDescription)
 
-    return NextResponse.json({ keywords })
+    return createAuthenticatedResponse({ keywords }, response)
   } catch (error) {
     console.error('Keyword suggestions failed:', error)
     return NextResponse.json(

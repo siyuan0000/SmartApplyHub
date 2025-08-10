@@ -1,11 +1,12 @@
-import { createServerComponentClient } from '@/lib/supabase/server'
+import { supabaseAdmin } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { LocationService } from '@/lib/services/locationService'
 import { IndustryService } from '@/lib/services/industryService'
 
 export async function GET() {
   try {
-    const supabase = await createServerComponentClient()
+    // Use admin client for public job filters - no authentication required
+    const supabase = supabaseAdmin
     
     // Get unique industries
     const { data: industries } = await supabase

@@ -17,6 +17,7 @@ interface SessionStorageData {
     tone: 'professional' | 'friendly' | 'formal'
     includeAttachments: boolean
     customInstructions: string
+    language: 'english' | 'chinese'
   }
 }
 
@@ -76,6 +77,7 @@ interface ApplicationWorkflowState {
     tone: 'professional' | 'friendly' | 'formal'
     includeAttachments: boolean
     customInstructions: string
+    language: 'english' | 'chinese'
   }
   
   // Loading states
@@ -164,7 +166,8 @@ export const useApplicationWorkflowStore = create<ApplicationWorkflowState>((set
   emailOptions: {
     tone: 'professional',
     includeAttachments: true,
-    customInstructions: ''
+    customInstructions: '',
+    language: 'english'
   },
   
   isGeneratingEmail: false,
@@ -173,7 +176,11 @@ export const useApplicationWorkflowStore = create<ApplicationWorkflowState>((set
   
   // Workflow control actions
   openWorkflow: (jobPosting?: JobPosting) => {
-    const newSteps = [...defaultSteps]
+    // Create fresh steps with all completed states reset to false
+    const newSteps = defaultSteps.map(step => ({
+      ...step,
+      completed: false
+    }))
     let startStep = 0
     
     // If job is provided, mark first step as completed and start from resume selection
@@ -189,6 +196,14 @@ export const useApplicationWorkflowStore = create<ApplicationWorkflowState>((set
       selectedJob: jobPosting || null,
       selectedResume: null,
       generatedEmail: null,
+      emailOptions: {
+        tone: 'professional',
+        includeAttachments: true,
+        customInstructions: '',
+        language: 'english'
+      },
+      isGeneratingEmail: false,
+      isSubmittingApplication: false,
       error: null
     })
   },
@@ -209,7 +224,8 @@ export const useApplicationWorkflowStore = create<ApplicationWorkflowState>((set
       emailOptions: {
         tone: 'professional',
         includeAttachments: true,
-        customInstructions: ''
+        customInstructions: '',
+        language: 'english'
       },
       isGeneratingEmail: false,
       isSubmittingApplication: false,

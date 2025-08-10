@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getAuthenticatedUser, createApiClient } from '@/lib/supabase/api'
+import { getAuthenticatedUser, createApiClient, createAuthenticatedResponse } from '@/lib/supabase/api'
 
 // GET /api/applications/[id] - Get single application
 export async function GET(
@@ -17,8 +17,14 @@ export async function GET(
     }
 
     // Authenticate user
-    const user = await getAuthenticatedUser(request)
-    const supabase = await createApiClient(request)
+    // Create response object to handle cookies properly
+
+    const response = NextResponse.next()
+
+    
+
+    const user = await getAuthenticatedUser(request, response)
+    const supabase = createApiClient(request, response)
 
     // Get application with job posting details
     const { data: application, error } = await supabase
@@ -57,7 +63,7 @@ export async function GET(
       )
     }
 
-    return NextResponse.json({ application })
+    return createAuthenticatedResponse({ application }, response)
   } catch (error) {
     console.error('API error:', error)
     return NextResponse.json(

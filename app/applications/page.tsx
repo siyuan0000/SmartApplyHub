@@ -3,6 +3,8 @@
 export const dynamic = 'force-dynamic'
 
 import { useState, useEffect, useCallback } from 'react'
+import { createClient } from '@/lib/supabase/client'
+import { useAuth } from '@/hooks/useAuth'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -26,35 +28,69 @@ export default function Applications() {
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [searchTerm, setSearchTerm] = useState('')
   const { openWorkflow } = useApplicationWorkflowStore()
+  const { user, loading: authLoading } = useAuth()
+  
+  const supabase = createClient()
 
   const fetchApplications = useCallback(async () => {
+    if (!user) return
+    
     setLoading(true)
     setError(null)
     
     try {
-      const params = new URLSearchParams()
+      console.log('🔍 [Applications Page] Fetching applications with Supabase client...')
+      
+      // Build query
+      let query = supabase
+        .from('job_applications')
+        .select(`
+          *,
+          job_postings (
+            id,
+            title,
+            company_name,
+            location,
+            description,
+            salary_range,
+            job_type
+          )
+        `)
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+      
+      // Apply status filter
       if (statusFilter !== 'all') {
-        params.append('status', statusFilter)
+        query = query.eq('status', statusFilter)
       }
       
-      const response = await fetch(`/api/applications?${params}`)
-      if (!response.ok) {
-        throw new Error('Failed to fetch applications')
+      const { data: applications, error } = await query
+      
+      if (error) {
+        console.error('❌ [Applications Page] Supabase error:', error)
+        throw new Error(error.message)
       }
       
-      const data = await response.json()
-      setApplications(data.applications || [])
+      console.log('✅ [Applications Page] Received data:', { applicationCount: applications?.length || 0 })
+      setApplications(applications || [])
     } catch (err) {
+      console.error('💥 [Applications Page] Error:', err)
       setError(err instanceof Error ? err.message : 'Failed to load applications')
       setApplications([])
     } finally {
       setLoading(false)
     }
-  }, [statusFilter])
+  }, [statusFilter, user, supabase])
 
+  // Fetch applications when user is available
   useEffect(() => {
-    fetchApplications()
-  }, [fetchApplications])
+    if (user) {
+      fetchApplications()
+    } else if (!authLoading) {
+      // User not authenticated and auth loading is done
+      setLoading(false)
+    }
+  }, [fetchApplications, user, authLoading])
 
   const handleNewApplication = () => {
     openWorkflow()
@@ -102,6 +138,19 @@ export default function Applications() {
       case 'rejected': return 'border-l-red-500'
       default: return 'border-l-gray-500'
     }
+  }
+
+  // Show login prompt if not authenticated
+  if (!user && !authLoading) {
+    return (
+      <AppLayout>
+        <div className="flex flex-col items-center justify-center min-h-[400px] space-y-4">
+          <h2 className="text-2xl font-bold">Please Log In</h2>
+          <p className="text-muted-foreground">You need to log in to view your applications.</p>
+          <Button onClick={() => window.location.href = '/login'}>Go to Login</Button>
+        </div>
+      </AppLayout>
+    )
   }
 
   return (
