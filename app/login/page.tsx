@@ -35,7 +35,24 @@ export default function Login() {
           password,
         })
         if (error) throw error
-        router.push('/dashboard')
+        
+        // Check if user has completed onboarding
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user) {
+          const { data: profile } = await supabase
+            .from('users')
+            .select('onboarding_completed')
+            .eq('id', user.id)
+            .single()
+          
+          if (profile?.onboarding_completed) {
+            router.push('/dashboard')
+          } else {
+            router.push('/onboarding')
+          }
+        } else {
+          router.push('/dashboard')
+        }
       }
     } catch (error) {
       alert(error instanceof Error ? error.message : 'An error occurred')

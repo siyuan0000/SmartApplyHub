@@ -38,6 +38,13 @@ export default function Dashboard() {
   return (
     <AppLayout>
       <div className="space-y-6">
+        {/* Page Header */}
+        <div>
+          <h1 className="text-2xl font-bold">Dashboard</h1>
+          <p className="text-muted-foreground">
+            Welcome back! Here&apos;s your job search overview.
+          </p>
+        </div>
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <Card>

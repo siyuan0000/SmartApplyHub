@@ -15,6 +15,19 @@ export interface Database {
           email: string
           full_name: string | null
           avatar_url: string | null
+          phone: string | null
+          linkedin: string | null
+          github: string | null
+          bio: string | null
+          job_titles: string[]
+          preferred_location: string | null
+          salary_min: number | null
+          salary_max: number | null
+          job_type: string[]
+          experience_level: 'entry' | 'mid' | 'senior' | 'lead' | 'executive' | null
+          skills: string[]
+          industries: string[]
+          onboarding_completed: boolean
           created_at: string
           updated_at: string
         }
@@ -23,6 +36,19 @@ export interface Database {
           email: string
           full_name?: string | null
           avatar_url?: string | null
+          phone?: string | null
+          linkedin?: string | null
+          github?: string | null
+          bio?: string | null
+          job_titles?: string[]
+          preferred_location?: string | null
+          salary_min?: number | null
+          salary_max?: number | null
+          job_type?: string[]
+          experience_level?: 'entry' | 'mid' | 'senior' | 'lead' | 'executive' | null
+          skills?: string[]
+          industries?: string[]
+          onboarding_completed?: boolean
           created_at?: string
           updated_at?: string
         }
@@ -31,6 +57,19 @@ export interface Database {
           email?: string
           full_name?: string | null
           avatar_url?: string | null
+          phone?: string | null
+          linkedin?: string | null
+          github?: string | null
+          bio?: string | null
+          job_titles?: string[]
+          preferred_location?: string | null
+          salary_min?: number | null
+          salary_max?: number | null
+          job_type?: string[]
+          experience_level?: 'entry' | 'mid' | 'senior' | 'lead' | 'executive' | null
+          skills?: string[]
+          industries?: string[]
+          onboarding_completed?: boolean
           created_at?: string
           updated_at?: string
         }

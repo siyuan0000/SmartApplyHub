@@ -29,13 +29,6 @@ export function Header({ onToggleSidebar }: HeaderProps) {
         >
           <Menu className="h-5 w-5" />
         </Button>
-        
-        <div>
-          <h1 className="text-xl font-semibold">Dashboard</h1>
-          <p className="text-sm text-muted-foreground">
-            Welcome back! Here&apos;s your job search overview.
-          </p>
-        </div>
       </div>
 
       <div className="flex items-center gap-4">

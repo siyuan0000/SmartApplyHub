@@ -7,6 +7,22 @@ CREATE TABLE public.users (
     email text NOT NULL,
     full_name text,
     avatar_url text,
+    -- Profile information
+    phone text,
+    linkedin text,
+    github text,
+    bio text,
+    -- Job preferences
+    job_titles text[] DEFAULT '{}',
+    preferred_location text,
+    salary_min integer,
+    salary_max integer,
+    job_type text[] DEFAULT '{}',
+    experience_level text CHECK (experience_level IN ('entry', 'mid', 'senior', 'lead', 'executive')),
+    skills text[] DEFAULT '{}',
+    industries text[] DEFAULT '{}',
+    -- Onboarding tracking
+    onboarding_completed boolean DEFAULT false,
     created_at timestamptz DEFAULT now(),
     updated_at timestamptz DEFAULT now()
 );

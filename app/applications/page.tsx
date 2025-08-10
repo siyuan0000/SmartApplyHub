@@ -27,6 +27,7 @@ export default function Applications() {
   const [error, setError] = useState<string | null>(null)
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [searchTerm, setSearchTerm] = useState('')
+  const [dateRangeFilter, setDateRangeFilter] = useState<string>('all')
   const { openWorkflow } = useApplicationWorkflowStore()
   const { user, loading: authLoading } = useAuth()
   
@@ -96,11 +97,33 @@ export default function Applications() {
     openWorkflow()
   }
 
-  // Filter applications by search term
-  const filteredApplications = applications.filter(app => 
-    app.company_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    app.position_title.toLowerCase().includes(searchTerm.toLowerCase())
-  )
+  // Filter applications by search term and date range
+  const filteredApplications = applications.filter(app => {
+    // Text search filter
+    const matchesSearch = app.company_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      app.position_title.toLowerCase().includes(searchTerm.toLowerCase())
+    
+    // Date range filter
+    const appDate = new Date(app.created_at)
+    const now = new Date()
+    let matchesDateRange = true
+    
+    if (dateRangeFilter === 'week') {
+      const weekAgo = new Date()
+      weekAgo.setDate(now.getDate() - 7)
+      matchesDateRange = appDate >= weekAgo
+    } else if (dateRangeFilter === 'month') {
+      const monthAgo = new Date()
+      monthAgo.setMonth(now.getMonth() - 1)
+      matchesDateRange = appDate >= monthAgo
+    } else if (dateRangeFilter === 'quarter') {
+      const quarterAgo = new Date()
+      quarterAgo.setMonth(now.getMonth() - 3)
+      matchesDateRange = appDate >= quarterAgo
+    }
+    
+    return matchesSearch && matchesDateRange
+  })
 
   // Calculate stats
   const stats = {
@@ -231,51 +254,6 @@ export default function Applications() {
           </Card>
         </div>
 
-        {/* Filters */}
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex flex-col md:flex-row gap-4">
-              <div className="flex-1">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search applications..."
-                    className="pl-10"
-                  />
-                </div>
-              </div>
-              <div className="flex gap-2">
-                <Select>
-                  <SelectTrigger className="w-40">
-                    <SelectValue placeholder="Status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Status</SelectItem>
-                    <SelectItem value="pending">Pending</SelectItem>
-                    <SelectItem value="applied">Applied</SelectItem>
-                    <SelectItem value="interview">Interview</SelectItem>
-                    <SelectItem value="offer">Offer</SelectItem>
-                    <SelectItem value="rejected">Rejected</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Select>
-                  <SelectTrigger className="w-40">
-                    <SelectValue placeholder="Date Range" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Time</SelectItem>
-                    <SelectItem value="week">This Week</SelectItem>
-                    <SelectItem value="month">This Month</SelectItem>
-                    <SelectItem value="quarter">This Quarter</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Button variant="outline" size="icon">
-                  <Filter className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
 
         {/* Search and Filters */}
         <Card>
@@ -304,6 +282,17 @@ export default function Applications() {
                     <SelectItem value="interview">Interview</SelectItem>
                     <SelectItem value="offer">Offer</SelectItem>
                     <SelectItem value="rejected">Rejected</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={dateRangeFilter} onValueChange={setDateRangeFilter}>
+                  <SelectTrigger className="w-40">
+                    <SelectValue placeholder="Date Range" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Time</SelectItem>
+                    <SelectItem value="week">This Week</SelectItem>
+                    <SelectItem value="month">This Month</SelectItem>
+                    <SelectItem value="quarter">This Quarter</SelectItem>
                   </SelectContent>
                 </Select>
                 <Button variant="outline" onClick={fetchApplications} disabled={loading}>

@@ -100,3 +100,63 @@ export async function GET(request: NextRequest) {
     )
   }
 }
+
+export async function PUT(request: NextRequest) {
+  try {
+    // Get the user from the Authorization header
+    const authHeader = request.headers.get('Authorization')
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const token = authHeader.substring(7)
+    
+    // Verify the JWT token
+    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token)
+    
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Invalid token' }, { status: 401 })
+    }
+
+    // Get the update data from the request body
+    const updateData = await request.json()
+    
+    // Validate and sanitize the update data
+    const allowedFields = [
+      'full_name', 'avatar_url', 'phone', 'linkedin', 'github', 'bio',
+      'job_titles', 'preferred_location', 'salary_min', 'salary_max', 'job_type',
+      'experience_level', 'skills', 'industries', 'onboarding_completed'
+    ]
+    
+    const filteredUpdateData = Object.keys(updateData)
+      .filter(key => allowedFields.includes(key))
+      .reduce((obj: Record<string, unknown>, key) => {
+        obj[key] = updateData[key]
+        return obj
+      }, {})
+
+    // Update user profile
+    const { data: updatedUser, error } = await supabaseAdmin
+      .from('users')
+      .update(filteredUpdateData)
+      .eq('id', user.id)
+      .select('*')
+      .single()
+
+    if (error) {
+      console.error('Failed to update user profile:', error)
+      return NextResponse.json(
+        { error: 'Failed to update user profile' },
+        { status: 500 }
+      )
+    }
+
+    return NextResponse.json({ user: updatedUser })
+  } catch (error) {
+    console.error('Profile update error:', error)
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    )
+  }
+}

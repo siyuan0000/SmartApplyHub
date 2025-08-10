@@ -10,7 +10,6 @@ import {
   Briefcase, 
   Search, 
   Brain, 
-  FileCheck,
   Settings,
   LogOut,
   User
@@ -26,8 +25,6 @@ const navigationItems = [
   { name: 'Resumes', href: '/resumes', icon: FileText },
   { name: 'Applications', href: '/applications', icon: Briefcase },
   { name: 'Job Search', href: '/jobs', icon: Search },
-  { name: 'AI Review', href: '/ai-review', icon: Brain },
-  { name: 'Templates', href: '/templates', icon: FileCheck },
   { name: 'Settings', href: '/settings', icon: Settings },
 ]
 

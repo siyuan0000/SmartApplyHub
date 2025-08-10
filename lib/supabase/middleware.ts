@@ -15,7 +15,7 @@ export async function updateSession(request: NextRequest) {
           return request.cookies.getAll()
         },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => {
+          cookiesToSet.forEach(({ name, value }) => {
             request.cookies.set(name, value)
           })
           supabaseResponse = NextResponse.next({
@@ -30,7 +30,62 @@ export async function updateSession(request: NextRequest) {
   )
 
   // refreshing the auth token
-  await supabase.auth.getUser()
+  const { data: { user } } = await supabase.auth.getUser()
+  const url = request.nextUrl.clone()
+  
+  // Protected routes that require authentication
+  const protectedRoutes = ['/dashboard', '/resumes', '/applications', '/jobs', '/settings', '/ai-review', '/templates']
+  // Routes that require onboarding completion
+  const onboardingRequiredRoutes = ['/dashboard', '/resumes', '/applications', '/jobs', '/ai-review', '/templates']
+
+  const isProtectedRoute = protectedRoutes.some(route => url.pathname.startsWith(route))
+  const isOnboardingRequiredRoute = onboardingRequiredRoutes.some(route => url.pathname.startsWith(route))
+  
+  // Redirect to login if user is not authenticated and trying to access protected route
+  if (!user && isProtectedRoute) {
+    const redirectUrl = url.clone()
+    redirectUrl.pathname = '/login'
+    return NextResponse.redirect(redirectUrl)
+  }
+  
+  // Check onboarding completion for authenticated users accessing onboarding-required routes
+  if (user && isOnboardingRequiredRoute && !url.pathname.startsWith('/settings')) {
+    try {
+      const { data: profile } = await supabase
+        .from('users')
+        .select('onboarding_completed')
+        .eq('id', user.id)
+        .single()
+      
+      // Redirect to onboarding if not completed
+      if (!profile?.onboarding_completed) {
+        const redirectUrl = url.clone()
+        redirectUrl.pathname = '/onboarding'
+        return NextResponse.redirect(redirectUrl)
+      }
+    } catch (error) {
+      console.error('Error checking onboarding status:', error)
+    }
+  }
+  
+  // Redirect completed users away from onboarding
+  if (user && url.pathname === '/onboarding') {
+    try {
+      const { data: profile } = await supabase
+        .from('users')
+        .select('onboarding_completed')
+        .eq('id', user.id)
+        .single()
+      
+      if (profile?.onboarding_completed) {
+        const redirectUrl = url.clone()
+        redirectUrl.pathname = '/dashboard'
+        return NextResponse.redirect(redirectUrl)
+      }
+    } catch (error) {
+      console.error('Error checking onboarding status:', error)
+    }
+  }
 
   return supabaseResponse
 }
