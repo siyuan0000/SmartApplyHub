@@ -1,4 +1,3 @@
-import { supabaseLegacy } from '@/lib/supabase/legacy'
 import { createClient } from '@/lib/supabase/client'
 import { Database } from '@/types/database.types'
 import { ResumeContent } from './parser'
@@ -32,10 +31,11 @@ export interface UpdateResumeData {
 
 export class ResumeService {
   static async createResume(data: CreateResumeData): Promise<ResumeRow> {
-
     // Ensure user profile exists before creating resume
     await getCurrentUserProfile()
 
+    const supabase = createClient()
+    
     const insertData: ResumeInsert = {
       title: data.title,
       content: data.content as unknown as Database['public']['Tables']['resumes']['Insert']['content'],
@@ -48,8 +48,7 @@ export class ResumeService {
       is_active: false
     }
 
-
-    const { data: resume, error } = await supabaseLegacy
+    const { data: resume, error } = await supabase
       .from('resumes')
       .insert(insertData)
       .select()
@@ -71,13 +70,15 @@ export class ResumeService {
   }
 
   static async updateResume(id: string, data: UpdateResumeData): Promise<ResumeRow> {
+    const supabase = createClient()
+    
     const updateData: ResumeUpdate = {
       ...data,
       content: data.content as unknown as Database['public']['Tables']['resumes']['Update']['content'],
       updated_at: new Date().toISOString()
     }
 
-    const { data: resume, error } = await supabaseLegacy
+    const { data: resume, error } = await supabase
       .from('resumes')
       .update(updateData)
       .eq('id', id)
@@ -112,7 +113,9 @@ export class ResumeService {
   }
 
   static async getResume(id: string): Promise<ResumeRow | null> {
-    const { data: resume, error } = await supabaseLegacy
+    const supabase = createClient()
+    
+    const { data: resume, error } = await supabase
       .from('resumes')
       .select('*')
       .eq('id', id)
@@ -152,7 +155,8 @@ export class ResumeService {
     }
 
     // Delete the resume record from the database
-    const { error } = await supabaseLegacy
+    const supabase = createClient()
+    const { error } = await supabase
       .from('resumes')
       .delete()
       .eq('id', id)
@@ -163,8 +167,10 @@ export class ResumeService {
   }
 
   static async setActiveResume(id: string, userId: string): Promise<void> {
+    const supabase = createClient()
+    
     // First, set all resumes to inactive
-    const { error: deactivateError } = await supabaseLegacy
+    const { error: deactivateError } = await supabase
       .from('resumes')
       .update({ is_active: false })
       .eq('user_id', userId)
@@ -174,7 +180,7 @@ export class ResumeService {
     }
 
     // Then, set the specific resume to active
-    const { error: activateError } = await supabaseLegacy
+    const { error: activateError } = await supabase
       .from('resumes')
       .update({ is_active: true })
       .eq('id', id)
@@ -202,7 +208,8 @@ export class ResumeService {
       is_active: false
     }
 
-    const { data: duplicate, error } = await supabaseLegacy
+    const supabase = createClient()
+    const { data: duplicate, error } = await supabase
       .from('resumes')
       .insert(duplicateData)
       .select()
@@ -239,7 +246,8 @@ export class ResumeService {
     active: number
     lastUpdated: string | null
   }> {
-    const { data: resumes, error } = await supabaseLegacy
+    const supabase = createClient()
+    const { data: resumes, error } = await supabase
       .from('resumes')
       .select('is_active, updated_at')
       .eq('user_id', userId)
