@@ -11,11 +11,12 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { ResumeContent } from '@/lib/resume/parser'
 import { useResumeEditor, formatAchievements, parseAchievements } from '@/hooks/useResumeEditor'
 import { useAI } from '@/hooks/useAI'
+import { useAboutGeneration } from '@/hooks/useAboutGeneration'
 import { ResumeEditorSidebar } from './ResumeEditorSidebar'
 import { useUIStore } from '@/store/ui'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { cn } from '@/lib/utils'
-import { Plus, Trash2, Sparkles, AlertCircle } from 'lucide-react'
+import { Plus, Trash2, Sparkles, AlertCircle, RefreshCw, Wand2, Copy } from 'lucide-react'
 
 interface ResumeEditorProps {
   resumeId: string
@@ -46,7 +47,21 @@ export function ResumeEditor({ resumeId, onSave }: ResumeEditorProps) {
   
   const [activeSection, setActiveSection] = useState<string>('contact')
   const { enhanceSection, isEnhancing, error: aiError, clearError: clearAIError } = useAI()
+  const { 
+    generateAbout, 
+    generateAboutVariations, 
+    enhanceAbout,
+    isGenerating, 
+    isGeneratingVariations, 
+    isEnhancing: isEnhancingAbout, 
+    error: aboutError,
+    lastResult,
+    variations,
+    clearError: clearAboutError,
+    clearResults
+  } = useAboutGeneration()
   
+  const [showVariations, setShowVariations] = useState(false)
   const isMobile = useIsMobile()
   const autoCollapseTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const { 
@@ -129,9 +144,69 @@ export function ResumeEditor({ resumeId, onSave }: ResumeEditorProps) {
     )
   }
 
+  // About generation handlers
+  const handleGenerateAbout = async () => {
+    if (!content) return
+    try {
+      // Clear previous text and error state
+      clearAboutError()
+      clearResults()
+      
+      // Clear the current summary to show we're generating fresh content
+      updateSummary('')
+      
+      const result = await generateAbout(content)
+      if (result) {
+        // Show success message for offline fallback
+        if (result.provider === 'offline-fallback' || result.provider === 'local-fallback') {
+          console.log('Generated offline template - customize it with your specific details')
+        }
+        updateSummary(result.aboutText)
+        await handleSave()
+      }
+    } catch (error) {
+      console.error('Failed to generate about:', error)
+      // Show error state - the error will be displayed in the UI
+    }
+  }
+
+  const handleGenerateVariations = async () => {
+    if (!content) return
+    try {
+      clearAboutError()
+      clearResults()
+      setShowVariations(true)
+      await generateAboutVariations(content, 3)
+    } catch (error) {
+      console.error('Failed to generate variations:', error)
+    }
+  }
+
+  const handleEnhanceAbout = async () => {
+    if (!content || !content.summary) return
+    try {
+      clearAboutError()
+      clearResults()
+      const result = await enhanceAbout(content.summary, content)
+      if (result) {
+        updateSummary(result.aboutText)
+        await handleSave()
+      }
+    } catch (error) {
+      console.error('Failed to enhance about:', error)
+    }
+  }
+
+  const handleSelectVariation = async (variation: { aboutText: string }) => {
+    updateSummary(variation.aboutText)
+    setShowVariations(false)
+    clearResults()
+    await handleSave()
+  }
+
   const sections = [
     { id: 'contact', label: 'Contact Info', icon: '👤' },
-    { id: 'summary', label: 'Summary', icon: '📝' },
+    { id: 'about', label: 'About Me', icon: '📝' },
     { id: 'experience', label: 'Experience', icon: '💼' },
     { id: 'education', label: 'Education', icon: '🎓' },
     { id: 'skills', label: 'Skills', icon: '🔧' },
@@ -162,6 +237,25 @@ export function ResumeEditor({ resumeId, onSave }: ResumeEditorProps) {
               <AlertDescription>
                 AI Enhancement Error: {aiError}
                 <button onClick={clearAIError} className="ml-2 text-sm underline">
+                  Dismiss
+                </button>
+              </AlertDescription>
+            </Alert>
+          )}
+          {aboutError && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                About Generation Error: {aboutError}
+                <div className="mt-2 text-xs">
+                  {aboutError.includes('Failed to fetch') && (
+                    <p>💡 Try: Check your internet connection and API keys. The system will still generate a basic template for you.</p>
+                  )}
+                  {aboutError.includes('All providers failed') && (
+                    <p>💡 Tip: Make sure you have set at least one API key (OPENAI_API_KEY, DEEPSEEK_API_KEY) in your environment.</p>
+                  )}
+                </div>
+                <button onClick={clearAboutError} className="ml-2 text-sm underline">
                   Dismiss
                 </button>
               </AlertDescription>
@@ -261,31 +355,158 @@ export function ResumeEditor({ resumeId, onSave }: ResumeEditorProps) {
           </Card>
         )}
 
-        {activeSection === 'summary' && (
+        {activeSection === 'about' && (
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <span>📝</span>
-                Professional Summary
-                <Button 
-                  size="sm" 
-                  variant="outline" 
-                  className="ml-auto gap-1"
-                  onClick={() => handleEnhanceSection('summary', content?.summary || '')}
-                  disabled={isEnhancing}
-                >
-                  <Sparkles className="h-3 w-3" />
-                  {isEnhancing ? 'Enhancing...' : 'AI Enhance'}
-                </Button>
+                About Me (LinkedIn Style)
+                <div className="ml-auto flex gap-2">
+                  <Button 
+                    size="sm" 
+                    variant="outline" 
+                    className="gap-1"
+                    onClick={handleGenerateAbout}
+                    disabled={isGenerating || isGeneratingVariations || isEnhancingAbout}
+                  >
+                    <Wand2 className="h-3 w-3" />
+                    {isGenerating ? 'Generating...' : 'Generate'}
+                  </Button>
+                  {content?.summary && (
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      className="gap-1"
+                      onClick={handleEnhanceAbout}
+                      disabled={isGenerating || isGeneratingVariations || isEnhancingAbout}
+                    >
+                      <Sparkles className="h-3 w-3" />
+                      {isEnhancingAbout ? 'Enhancing...' : 'Enhance'}
+                    </Button>
+                  )}
+                  <Button 
+                    size="sm" 
+                    variant="outline" 
+                    className="gap-1"
+                    onClick={handleGenerateVariations}
+                    disabled={isGenerating || isGeneratingVariations || isEnhancingAbout}
+                  >
+                    <RefreshCw className="h-3 w-3" />
+                    {isGeneratingVariations ? 'Generating...' : 'Variations'}
+                  </Button>
+                </div>
               </CardTitle>
             </CardHeader>
-            <CardContent>
-              <Textarea
-                value={content.summary || ''}
-                onChange={(e) => updateSummary(e.target.value)}
-                placeholder="Write a compelling professional summary that highlights your key achievements and career goals..."
-                className="min-h-32"
-              />
+            <CardContent className="space-y-4">
+              <div>
+                <Label htmlFor="about">About Section</Label>
+                <Textarea
+                  id="about"
+                  value={content.summary || ''}
+                  onChange={(e) => updateSummary(e.target.value)}
+                  placeholder="Generate a professional LinkedIn-style about section using AI, or write your own compelling introduction that highlights your unique value proposition..."
+                  className="min-h-32"
+                />
+                <div className="flex items-center justify-between mt-2">
+                  <p className="text-xs text-muted-foreground">
+                    {content?.summary ? `${content.summary.split(/\s+/).length} words` : '0 words'} 
+                    {content?.summary && content.summary.length > 0 && (
+                      <span className="ml-2">
+                        (Recommended: 100-150 words for LinkedIn)
+                      </span>
+                    )}
+                  </p>
+                  {lastResult && (
+                    <p className="text-xs text-green-600">
+                      Last generated: {(() => {
+                        try {
+                          const generatedAt = lastResult.generatedAt instanceof Date 
+                            ? lastResult.generatedAt 
+                            : new Date(lastResult.generatedAt);
+                          
+                          // Check if the date is valid
+                          if (isNaN(generatedAt.getTime())) {
+                            return 'Recently';
+                          }
+                          
+                          return generatedAt.toLocaleTimeString();
+                        } catch (error) {
+                          console.warn('Failed to format generatedAt:', error);
+                          return 'Recently';
+                        }
+                      })()}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* About Generation Variations */}
+              {showVariations && variations.length > 0 && (
+                <div className="border-t pt-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="font-medium text-sm">Choose from AI-generated variations:</h4>
+                    <Button 
+                      size="sm" 
+                      variant="ghost" 
+                      onClick={() => setShowVariations(false)}
+                    >
+                      ✕
+                    </Button>
+                  </div>
+                  <div className="space-y-3">
+                    {variations.map((variation, index) => (
+                      <div key={index} className="border rounded-lg p-3 bg-muted/30">
+                        <div className="flex items-start justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs bg-primary text-primary-foreground px-2 py-1 rounded">
+                              Option {index + 1}
+                            </span>
+                            <span className="text-xs text-muted-foreground">
+                              {variation.wordCount} words
+                            </span>
+                          </div>
+                          <div className="flex gap-1">
+                            <Button 
+                              size="sm" 
+                              variant="ghost" 
+                              className="h-6 w-6 p-0"
+                              onClick={() => navigator.clipboard.writeText(variation.aboutText)}
+                              title="Copy to clipboard"
+                            >
+                              <Copy className="h-3 w-3" />
+                            </Button>
+                            <Button 
+                              size="sm" 
+                              variant="default" 
+                              className="h-6 px-2 text-xs"
+                              onClick={() => handleSelectVariation(variation)}
+                            >
+                              Use This
+                            </Button>
+                          </div>
+                        </div>
+                        <p className="text-sm text-foreground/80 whitespace-pre-wrap">
+                          {variation.aboutText}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Tips for writing About section */}
+              <div className="bg-blue-50 dark:bg-blue-950/30 rounded-lg p-3">
+                <h4 className="font-medium text-sm mb-2 text-blue-700 dark:text-blue-300">
+                  💡 About Section Tips
+                </h4>
+                <ul className="text-xs text-blue-600 dark:text-blue-400 space-y-1">
+                  <li>• Use first person perspective (&quot;I&quot; statements)</li>
+                  <li>• Highlight your unique value proposition</li>
+                  <li>• Include 2-3 key achievements with numbers if possible</li>
+                  <li>• End with your career goals or what you&apos;re seeking</li>
+                  <li>• Keep it conversational but professional</li>
+                </ul>
+              </div>
             </CardContent>
           </Card>
         )}
