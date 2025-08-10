@@ -6,7 +6,6 @@ import { AppLayout } from '@/components/layout/AppLayout'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Progress } from '@/components/ui/progress'
 import { Skeleton } from '@/components/ui/skeleton'
 import { 
   FileText, 
@@ -19,20 +18,46 @@ import {
   Target,
   Plus,
   ArrowRight,
-  AlertCircle
+  AlertCircle,
+  Settings,
+  Sparkles
 } from 'lucide-react'
 import { ApplicationWorkflowModal } from '@/components/applications/ApplicationWorkflowModal'
 import { useApplicationWorkflowStore } from '@/store/application-workflow'
 import { useDashboardData } from '@/hooks/useDashboardData'
+import { useRecommendedJobs } from '@/hooks/useRecommendedJobs'
+import { RecommendedJobCard } from '@/components/jobs/RecommendedJobCard'
 import { formatRelativeTime } from '@/lib/utils/time'
 import Link from 'next/link'
 
 export default function Dashboard() {
   const { openWorkflow } = useApplicationWorkflowStore()
   const { recentApplications, stats, loading, error, refresh } = useDashboardData()
+  const { 
+    recommendations, 
+    loading: recommendationsLoading, 
+    error: recommendationsError,
+    refresh: refreshRecommendations 
+  } = useRecommendedJobs({ limit: 4 })
 
   const handleNewApplication = () => {
     openWorkflow() // Open workflow without a pre-selected job
+  }
+
+  const handleViewJobDetails = (job: typeof recommendations[0]) => {
+    // TODO: Implement job details modal or navigation
+    console.log('View job details:', job)
+  }
+
+  const handleSaveJob = (job: typeof recommendations[0]) => {
+    // TODO: Implement save job functionality
+    console.log('Save job:', job)
+  }
+
+  const handleApplyToJob = (job: typeof recommendations[0]) => {
+    // TODO: Open application workflow with pre-selected job
+    openWorkflow()
+    console.log('Apply to job:', job)
   }
 
   return (
@@ -260,78 +285,109 @@ export default function Dashboard() {
           </Card>
         </div>
 
-        {/* Goals & Progress */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Weekly Goals</CardTitle>
-              <CardDescription>
-                Track your job search progress
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <div className="flex justify-between mb-2">
-                  <span className="text-sm font-medium">Applications Sent</span>
-                  <span className="text-sm text-muted-foreground">8/15</span>
-                </div>
-                <Progress value={53} className="h-2" />
+        {/* Recommended Jobs Section */}
+        <Card>
+          <CardHeader>
+            <div className="flex justify-between items-center">
+              <div className="flex items-center gap-2">
+                <Sparkles className="h-5 w-5 text-blue-600" />
+                <CardTitle>Recommended Jobs</CardTitle>
               </div>
-              <div>
-                <div className="flex justify-between mb-2">
-                  <span className="text-sm font-medium">Networking Contacts</span>
-                  <span className="text-sm text-muted-foreground">5/10</span>
-                </div>
-                <Progress value={50} className="h-2" />
+              <div className="flex items-center gap-2">
+                <Button variant="ghost" size="sm">
+                  <Settings className="h-4 w-4" />
+                </Button>
+                <Button asChild variant="ghost" size="sm">
+                  <Link href="/jobs?recommended=true">
+                    View All <ArrowRight className="h-4 w-4 ml-1" />
+                  </Link>
+                </Button>
               </div>
-              <div>
-                <div className="flex justify-between mb-2">
-                  <span className="text-sm font-medium">Skills Practice</span>
-                  <span className="text-sm text-muted-foreground">3/5</span>
-                </div>
-                <Progress value={60} className="h-2" />
+            </div>
+            <CardDescription>
+              Jobs matching your preferences and skills
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {recommendationsError && (
+              <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg mb-4">
+                <AlertCircle className="h-4 w-4 text-red-600" />
+                <p className="text-sm text-red-700">{recommendationsError}</p>
+                <Button variant="outline" size="sm" onClick={refreshRecommendations} className="ml-auto">
+                  Retry
+                </Button>
               </div>
-            </CardContent>
-          </Card>
+            )}
 
-          <Card>
-            <CardHeader>
-              <CardTitle>AI Insights</CardTitle>
-              <CardDescription>
-                Recommendations to improve your success rate
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex items-start gap-3 p-3 bg-blue-50 rounded-lg">
-                <Brain className="h-5 w-5 text-blue-600 mt-0.5" />
-                <div>
-                  <p className="text-sm font-medium">Resume Optimization</p>
-                  <p className="text-sm text-muted-foreground">
-                    Add more keywords related to React and TypeScript
-                  </p>
+            {recommendationsLoading ? (
+              // Loading skeleton
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {Array.from({ length: 4 }).map((_, index) => (
+                  <Card key={index} className="h-48">
+                    <CardHeader className="pb-2">
+                      <div className="flex justify-between items-start gap-2">
+                        <div className="flex-1">
+                          <Skeleton className="h-4 w-32 mb-2" />
+                          <Skeleton className="h-3 w-24" />
+                        </div>
+                        <Skeleton className="h-5 w-16" />
+                      </div>
+                    </CardHeader>
+                    <CardContent className="pt-0 space-y-2">
+                      <div className="flex gap-1">
+                        <Skeleton className="h-4 w-20" />
+                        <Skeleton className="h-4 w-16" />
+                      </div>
+                      <Skeleton className="h-3 w-full" />
+                      <Skeleton className="h-3 w-3/4" />
+                      <div className="flex gap-2 mt-4">
+                        <Skeleton className="h-6 w-16" />
+                        <Skeleton className="h-6 w-12" />
+                        <Skeleton className="h-6 w-16" />
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : recommendations.length === 0 ? (
+              // Empty state
+              <div className="text-center py-8">
+                <Sparkles className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                <p className="text-muted-foreground mb-2">No job recommendations yet</p>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Complete your profile and set your job preferences to get personalized recommendations
+                </p>
+                <div className="flex gap-2 justify-center">
+                  <Button asChild variant="outline" size="sm">
+                    <Link href="/settings">
+                      Update Profile
+                    </Link>
+                  </Button>
+                  <Button asChild size="sm">
+                    <Link href="/jobs">
+                      Browse Jobs
+                    </Link>
+                  </Button>
                 </div>
               </div>
-              <div className="flex items-start gap-3 p-3 bg-green-50 rounded-lg">
-                <TrendingUp className="h-5 w-5 text-green-600 mt-0.5" />
-                <div>
-                  <p className="text-sm font-medium">Application Timing</p>
-                  <p className="text-sm text-muted-foreground">
-                    Tuesday-Thursday applications get 23% more responses
-                  </p>
-                </div>
+            ) : (
+              // Recommended jobs grid
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {recommendations.map((job) => (
+                  <RecommendedJobCard
+                    key={job.id}
+                    job={job}
+                    onViewDetails={handleViewJobDetails}
+                    onSave={handleSaveJob}
+                    onApply={handleApplyToJob}
+                    isSaved={false} // TODO: Implement saved jobs tracking
+                  />
+                ))}
               </div>
-              <div className="flex items-start gap-3 p-3 bg-orange-50 rounded-lg">
-                <Target className="h-5 w-5 text-orange-600 mt-0.5" />
-                <div>
-                  <p className="text-sm font-medium">Cover Letter</p>
-                  <p className="text-sm text-muted-foreground">
-                    Personalize your template for fintech companies
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+            )}
+          </CardContent>
+        </Card>
+
       </div>
       <ApplicationWorkflowModal />
     </AppLayout>

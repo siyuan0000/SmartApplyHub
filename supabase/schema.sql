@@ -130,6 +130,36 @@ CREATE TABLE public.email_logs (
     created_at timestamptz DEFAULT now()
 );
 
+-- Create recommendation_preferences table for job recommendation filters
+CREATE TABLE public.recommendation_preferences (
+    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+    user_id uuid REFERENCES public.users(id) ON DELETE CASCADE NOT NULL,
+    
+    -- Location controls
+    location_filter text[], -- specific cities/regions, null = use profile location
+    location_flexible boolean DEFAULT true, -- expand search if no local matches
+    remote_only boolean DEFAULT false, -- override profile remote preference
+    
+    -- Timing controls  
+    recency_filter text CHECK (recency_filter IN ('1day', '3days', '1week', '2weeks', '1month')) DEFAULT '1week',
+    
+    -- Job characteristics
+    salary_min_override integer, -- temporary override of profile salary
+    salary_max_override integer,
+    company_size_preference text[] DEFAULT '{}', -- ['startup', 'mid-size', 'enterprise'] 
+    job_level_override text[] DEFAULT '{}', -- focus on specific levels
+    
+    -- Exclusions
+    excluded_companies text[] DEFAULT '{}',
+    excluded_industries text[] DEFAULT '{}',
+    
+    -- Meta
+    is_active boolean DEFAULT true,
+    created_at timestamptz DEFAULT now(),
+    updated_at timestamptz DEFAULT now(),
+    UNIQUE(user_id) -- one preference set per user
+);
+
 -- Create indexes for better performance
 CREATE INDEX idx_resumes_user_id ON public.resumes(user_id);
 CREATE INDEX idx_resumes_is_active ON public.resumes(is_active);
@@ -141,6 +171,7 @@ CREATE INDEX idx_application_templates_user_id ON public.application_templates(u
 CREATE INDEX idx_email_settings_user_id ON public.email_settings(user_id);
 CREATE INDEX idx_email_logs_user_id ON public.email_logs(user_id);
 CREATE INDEX idx_email_logs_status ON public.email_logs(status);
+CREATE INDEX idx_recommendation_preferences_user_id ON public.recommendation_preferences(user_id);
 
 -- Row Level Security (RLS) policies
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
@@ -150,6 +181,7 @@ ALTER TABLE public.ai_reviews ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.application_templates ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.email_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.email_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.recommendation_preferences ENABLE ROW LEVEL SECURITY;
 
 -- Users can only see their own data
 CREATE POLICY "Users can view own profile" ON public.users
@@ -227,6 +259,19 @@ CREATE POLICY "Users can view own email logs" ON public.email_logs
 CREATE POLICY "Users can create own email logs" ON public.email_logs
     FOR INSERT WITH CHECK (auth.uid() = user_id);
 
+-- Recommendation preferences policies
+CREATE POLICY "Users can view own recommendation preferences" ON public.recommendation_preferences
+    FOR SELECT USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can create own recommendation preferences" ON public.recommendation_preferences
+    FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update own recommendation preferences" ON public.recommendation_preferences
+    FOR UPDATE USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete own recommendation preferences" ON public.recommendation_preferences
+    FOR DELETE USING (auth.uid() = user_id);
+
 -- Enable RLS on job_postings and make them public
 ALTER TABLE public.job_postings ENABLE ROW LEVEL SECURITY;
 
@@ -254,6 +299,9 @@ CREATE TRIGGER update_job_applications_updated_at BEFORE UPDATE ON public.job_ap
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 CREATE TRIGGER update_application_templates_updated_at BEFORE UPDATE ON public.application_templates
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_recommendation_preferences_updated_at BEFORE UPDATE ON public.recommendation_preferences
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- Function to handle user creation

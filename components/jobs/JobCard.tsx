@@ -3,7 +3,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Building, MapPin, Clock, DollarSign, Users, Briefcase } from 'lucide-react'
+import { Building, MapPin, Clock, Users, Briefcase } from 'lucide-react'
 import { useState } from 'react'
 
 interface Job {
@@ -132,7 +132,7 @@ export function JobCard({ job, onViewDetails }: JobCardProps) {
           <div className="flex flex-wrap gap-3 text-sm">
             {job.salary_range && (
               <div className="flex items-center gap-1 text-green-600">
-                <DollarSign className="h-4 w-4" />
+                <span className="font-bold">¥</span>
                 <span className="font-medium">{job.salary_range}</span>
               </div>
             )}

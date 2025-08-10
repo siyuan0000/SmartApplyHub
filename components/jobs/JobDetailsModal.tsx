@@ -14,7 +14,6 @@ import {
   Building, 
   MapPin, 
   Clock, 
-  DollarSign, 
   Users, 
   Briefcase,
   Calendar,
@@ -246,7 +245,7 @@ export function JobDetailsModal({ jobId, isOpen, onClose }: JobDetailsModalProps
                   
                   {job.salary_range && (
                     <div className="flex items-center gap-2">
-                      <DollarSign className="h-4 w-4 text-green-600" />
+                      <span className="text-green-600 font-bold">¥</span>
                       <span className="text-sm font-semibold text-green-600">{job.salary_range}</span>
                     </div>
                   )}
@@ -310,7 +309,7 @@ export function JobDetailsModal({ jobId, isOpen, onClose }: JobDetailsModalProps
                       <div className="space-y-3">
                         {job.salary_range && (
                           <div className="flex items-center gap-3 p-2 rounded-lg bg-white/50 dark:bg-black/20">
-                            <DollarSign className="h-5 w-5 text-green-600" />
+                            <span className="text-green-600 font-bold text-lg">¥</span>
                             <div>
                               <p className="text-xs text-muted-foreground">薪资范围</p>
                               <p className="text-sm font-medium text-green-600">{job.salary_range}</p>

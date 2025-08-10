@@ -2,7 +2,7 @@
 
 import { useRef, useCallback } from 'react'
 import { Sidebar } from './Sidebar'
-import { Header } from './Header'
+// import { Header } from './Header' // Header removed
 import { useAuth } from '@/hooks/useAuth'
 import { useRouter } from 'next/navigation'
 import { useEffect } from 'react'
@@ -114,7 +114,7 @@ export function AppLayout({ children }: AppLayoutProps) {
         ref={mainContentRef}
         onClick={handleMainContentClick}
       >
-        <Header onToggleSidebar={toggleSidebar} />
+        {/* Header removed - use Ctrl+\ to toggle sidebar */}
         
         <main className="flex-1 overflow-y-auto bg-muted/10 p-4 sm:p-6">
           {children}

@@ -10,7 +10,6 @@ import {
   Search,
   MapPin,
   Building,
-  DollarSign,
   Clock,
   ChevronRight,
   Loader2,
@@ -157,7 +156,7 @@ export function JobSelectionStep() {
                 {selectedJob.location}
               </div>
               <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                <DollarSign className="h-3 w-3" />
+                <span className="font-bold">¥</span>
                 {formatSalary(selectedJob.salary_range)}
               </div>
               <Badge variant="outline">
@@ -247,7 +246,7 @@ export function JobSelectionStep() {
                         {job.location}
                       </div>
                       <div className="flex items-center gap-1">
-                        <DollarSign className="h-3 w-3" />
+                        <span className="font-bold text-sm">¥</span>
                         {formatSalary(job.salary_range)}
                       </div>
                       <div className="flex items-center gap-1">
