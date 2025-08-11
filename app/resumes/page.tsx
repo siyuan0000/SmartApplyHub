@@ -35,15 +35,26 @@ export default function Resumes() {
       return
     }
     try {
+      console.log('🔄 Loading resumes for user:', user.id)
+      
       // Ensure user profile exists before loading resumes
       await ensureUserExists(user)
+      console.log('✅ User profile verified')
+      
       const userResumes = await ResumeService.getUserResumes(user.id)
+      console.log('📋 Loaded resumes:', userResumes.length, 'resumes')
+      
       setResumes(userResumes)
       setSetupError(null)
     } catch (error) {
-      console.error('Failed to load resumes:', error)
-      if (error instanceof Error && error.message.includes('Database setup required')) {
-        setSetupError(error.message)
+      console.error('❌ Failed to load resumes:', error)
+      if (error instanceof Error) {
+        if (error.message.includes('Database setup required')) {
+          setSetupError(error.message)
+        } else if (error.message.includes('authentication') || error.message.includes('session')) {
+          // Handle authentication issues
+          setSetupError(`Authentication Error: ${error.message}`)
+        }
       }
     } finally {
       setLoading(false)
@@ -51,10 +62,16 @@ export default function Resumes() {
   }, [user])
 
   useEffect(() => {
+    console.log('🔍 Auth state changed:', { authLoading, user: user?.id, email: user?.email })
+    
     if (!authLoading && user) {
+      console.log('✅ User authenticated, loading resumes')
       loadResumes()
     } else if (!authLoading && !user) {
+      console.log('❌ No user authenticated')
       setLoading(false)
+    } else {
+      console.log('⏳ Auth still loading...')
     }
   }, [user, authLoading, loadResumes])
 

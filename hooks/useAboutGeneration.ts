@@ -24,7 +24,7 @@ export function useAboutGeneration() {
   /**
    * Generate a single about section via API with no caching
    */
-  const generateAbout = async (resumeData: ResumeContent): Promise<AboutGenerationResult | null> => {
+  const generateAbout = async (resumeData: ResumeContent, retryCount = 0): Promise<AboutGenerationResult | null> => {
     setState(prev => ({ ...prev, isGenerating: true, error: null }))
     
     try {
@@ -39,8 +39,17 @@ export function useAboutGeneration() {
       })
       
       if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || `HTTP ${response.status}`)
+        let errorMessage = `HTTP ${response.status}`
+        try {
+          const errorData = await response.json()
+          errorMessage = errorData.error || errorMessage
+          if (errorData.details) {
+            errorMessage += `: ${errorData.details}`
+          }
+        } catch {
+          // Failed to parse error response, use status
+        }
+        throw new Error(errorMessage)
       }
       
       const result = await response.json()
@@ -52,14 +61,37 @@ export function useAboutGeneration() {
       }))
       return result
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to generate about section'
+      console.error('About generation failed:', error)
+      
+      // Retry once on network errors
+      if (retryCount < 1 && (error instanceof Error && 
+          (error.message.includes('fetch') || error.message.includes('network')))) {
+        console.log('Retrying generation due to network error...')
+        return generateAbout(resumeData, retryCount + 1)
+      }
+      
+      let errorMessage = 'Failed to generate content'
+      if (error instanceof Error) {
+        if (error.message.includes('Failed to fetch')) {
+          errorMessage = 'Network error - check your internet connection and try again'
+        } else if (error.message.includes('timeout')) {
+          errorMessage = 'Request timed out - the AI service may be busy, please try again'
+        } else if (error.message.includes('HTTP 500')) {
+          errorMessage = 'Server error - the AI service encountered an issue, please try again'
+        } else if (error.message.includes('HTTP 429')) {
+          errorMessage = 'Rate limit exceeded - please wait a moment and try again'
+        } else {
+          errorMessage = error.message
+        }
+      }
+      
       setState(prev => ({ 
         ...prev, 
         isGenerating: false, 
         error: errorMessage,
         lastResult: null
       }))
-      console.error('About generation failed:', error)
+      
       return null
     }
   }
@@ -115,7 +147,8 @@ export function useAboutGeneration() {
    */
   const enhanceAbout = async (
     currentAbout: string,
-    resumeData: ResumeContent
+    resumeData: ResumeContent,
+    retryCount = 0
   ): Promise<AboutGenerationResult | null> => {
     setState(prev => ({ ...prev, isEnhancing: true, error: null }))
     
@@ -127,12 +160,25 @@ export function useAboutGeneration() {
           'Cache-Control': 'no-store',
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ currentAbout, resumeData })
+        body: JSON.stringify({ 
+          resumeData, 
+          section: 'about', 
+          content: currentAbout 
+        })
       })
       
       if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || `HTTP ${response.status}`)
+        let errorMessage = `HTTP ${response.status}`
+        try {
+          const errorData = await response.json()
+          errorMessage = errorData.error || errorMessage
+          if (errorData.details) {
+            errorMessage += `: ${errorData.details}`
+          }
+        } catch {
+          // Failed to parse error response, use status
+        }
+        throw new Error(errorMessage)
       }
       
       const result = await response.json()
@@ -144,14 +190,37 @@ export function useAboutGeneration() {
       }))
       return result
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to enhance about section'
+      console.error('About enhancement failed:', error)
+      
+      // Retry once on network errors
+      if (retryCount < 1 && (error instanceof Error && 
+          (error.message.includes('fetch') || error.message.includes('network')))) {
+        console.log('Retrying enhancement due to network error...')
+        return enhanceAbout(currentAbout, resumeData, retryCount + 1)
+      }
+      
+      let errorMessage = 'Failed to enhance content'
+      if (error instanceof Error) {
+        if (error.message.includes('Failed to fetch')) {
+          errorMessage = 'Network error - check your internet connection and try again'
+        } else if (error.message.includes('timeout')) {
+          errorMessage = 'Request timed out - the AI service may be busy, please try again'
+        } else if (error.message.includes('HTTP 500')) {
+          errorMessage = 'Server error - the AI service encountered an issue, please try again'
+        } else if (error.message.includes('HTTP 429')) {
+          errorMessage = 'Rate limit exceeded - please wait a moment and try again'
+        } else {
+          errorMessage = error.message
+        }
+      }
+      
       setState(prev => ({ 
         ...prev, 
         isEnhancing: false, 
         error: errorMessage,
         lastResult: null
       }))
-      console.error('About enhancement failed:', error)
+      
       return null
     }
   }

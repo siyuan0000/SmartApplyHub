@@ -35,8 +35,35 @@ export class BaseAIService {
     })
     
     try {
+      // First try direct parsing
       return JSON.parse(response.content) as T
     } catch {
+      // If direct parsing fails, try to extract JSON using regex
+      const jsonMatch = response.content.match(/\{[\s\S]*\}/)
+      if (jsonMatch) {
+        try {
+          return JSON.parse(jsonMatch[0]) as T
+        } catch {
+          console.error('Failed to parse extracted JSON:', jsonMatch[0])
+        }
+      }
+      
+      // If still fails, try to clean up common markdown artifacts
+      let cleaned = response.content
+        .replace(/```json\s*/g, '')
+        .replace(/```\s*/g, '')
+        .replace(/^[^{]*/, '')
+        .replace(/[^}]*$/, '')
+        .trim()
+      
+      if (cleaned.startsWith('{') && cleaned.endsWith('}')) {
+        try {
+          return JSON.parse(cleaned) as T
+        } catch {
+          console.error('Failed to parse cleaned JSON:', cleaned)
+        }
+      }
+      
       console.error('Failed to parse structured response:', response.content)
       throw new Error('Invalid JSON response from AI service')
     }

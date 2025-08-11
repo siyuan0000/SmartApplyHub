@@ -10,13 +10,18 @@ interface ResumeEditorState {
   saving: boolean
   error: string | null
   resumeId: string | null
+  autoSaveEnabled: boolean
+  lastAutoSave: number | null
   
   // Actions
   loadResume: (id: string) => Promise<void>
   updateContent: (content: ResumeContent) => void
-  saveResume: () => Promise<void>
+  saveResume: (retryCount?: number) => Promise<void>
   resetChanges: () => void
   clearError: () => void
+  enableAutoSave: () => void
+  disableAutoSave: () => void
+  validateContent: (content: ResumeContent) => string[]
   
   // Section-specific updates
   updateContact: (field: string, value: string) => void
@@ -44,6 +49,11 @@ const parseAchievements = (text: string): string[] => {
     .filter(line => line.length > 0)
 }
 
+// Auto-save interval (5 minutes)
+const AUTO_SAVE_INTERVAL = 5 * 60 * 1000
+
+let autoSaveTimer: NodeJS.Timeout | null = null
+
 export const useResumeEditor = create<ResumeEditorState>((set, get) => ({
   // Initial state
   content: null,
@@ -52,6 +62,8 @@ export const useResumeEditor = create<ResumeEditorState>((set, get) => ({
   saving: false,
   error: null,
   resumeId: null,
+  autoSaveEnabled: false,
+  lastAutoSave: null,
   
   // Load resume from database
   loadResume: async (id: string) => {
@@ -82,22 +94,65 @@ export const useResumeEditor = create<ResumeEditorState>((set, get) => ({
     set({ content })
   },
   
-  // Save changes to database
-  saveResume: async () => {
+  // Save changes to database with retry logic
+  saveResume: async (retryCount = 0) => {
     const { content, resumeId } = get()
-    if (!content || !resumeId) return
+    if (!content || !resumeId) {
+      console.warn('Cannot save: missing content or resumeId')
+      return
+    }
     
     set({ saving: true, error: null })
+    
     try {
-      await ResumeService.updateResume(resumeId, { content })
+      // Validate content before saving
+      if (!content.contact || typeof content.contact !== 'object') {
+        throw new Error('Invalid resume content: missing or invalid contact information')
+      }
+      
+      // Create a deep copy to prevent mutation during save
+      const contentToSave = structuredClone(content)
+      
+      await ResumeService.updateResume(resumeId, { content: contentToSave })
+      
+      console.log('✅ Resume saved successfully')
       set({ 
         savedContent: structuredClone(content), // Update saved state
-        saving: false 
+        saving: false,
+        error: null
       })
+      
     } catch (error) {
-      console.error('Failed to save resume:', error)
+      console.error(`❌ Failed to save resume (attempt ${retryCount + 1}):`, error)
+      
+      const errorMessage = error instanceof Error ? error.message : 'Failed to save resume'
+      
+      // Retry logic for network errors
+      if (retryCount < 2 && (
+        errorMessage.includes('network') || 
+        errorMessage.includes('timeout') ||
+        errorMessage.includes('fetch')
+      )) {
+        console.log(`🔄 Retrying save operation (${retryCount + 1}/2)...`)
+        // Wait progressively longer between retries
+        await new Promise(resolve => setTimeout(resolve, (retryCount + 1) * 1000))
+        
+        set({ saving: false }) // Reset saving state temporarily
+        return get().saveResume(retryCount + 1)
+      }
+      
+      // Handle different error types
+      let userFriendlyError = errorMessage
+      if (errorMessage.includes('authentication') || errorMessage.includes('session')) {
+        userFriendlyError = 'Session expired. Please refresh the page and try again.'
+      } else if (errorMessage.includes('network') || errorMessage.includes('fetch')) {
+        userFriendlyError = 'Network error. Please check your connection and try again.'
+      } else if (errorMessage.includes('timeout')) {
+        userFriendlyError = 'Request timed out. Please try again.'
+      }
+      
       set({ 
-        error: error instanceof Error ? error.message : 'Failed to save resume',
+        error: userFriendlyError,
         saving: false 
       })
     }
@@ -114,6 +169,87 @@ export const useResumeEditor = create<ResumeEditorState>((set, get) => ({
   // Clear error state
   clearError: () => {
     set({ error: null })
+  },
+  
+  // Enable auto-save
+  enableAutoSave: () => {
+    const state = get()
+    if (!state.autoSaveEnabled && state.resumeId) {
+      console.log('✅ Auto-save enabled')
+      set({ autoSaveEnabled: true })
+      
+      // Set up auto-save timer
+      if (autoSaveTimer) clearInterval(autoSaveTimer)
+      autoSaveTimer = setInterval(() => {
+        const currentState = get()
+        const { isDirty } = useResumeEditorComputed.getState()
+        
+        if (currentState.autoSaveEnabled && isDirty && !currentState.saving && currentState.content) {
+          console.log('💾 Auto-saving resume...')
+          currentState.saveResume().then(() => {
+            set({ lastAutoSave: Date.now() })
+          })
+        }
+      }, AUTO_SAVE_INTERVAL)
+    }
+  },
+  
+  // Disable auto-save
+  disableAutoSave: () => {
+    console.log('❌ Auto-save disabled')
+    set({ autoSaveEnabled: false })
+    if (autoSaveTimer) {
+      clearInterval(autoSaveTimer)
+      autoSaveTimer = null
+    }
+  },
+  
+  // Validate resume content
+  validateContent: (content: ResumeContent) => {
+    const errors: string[] = []
+    
+    // Validate contact information
+    if (!content.contact) {
+      errors.push('Contact information is required')
+    } else {
+      if (!content.contact.email || !content.contact.email.includes('@')) {
+        errors.push('Valid email address is required')
+      }
+      if (!content.contact.name || content.contact.name.trim().length < 2) {
+        errors.push('Full name is required')
+      }
+    }
+    
+    // Validate experience
+    if (content.experience?.length > 0) {
+      content.experience.forEach((exp, index) => {
+        if (!exp.title || exp.title.trim().length === 0) {
+          errors.push(`Experience ${index + 1}: Job title is required`)
+        }
+        if (!exp.company || exp.company.trim().length === 0) {
+          errors.push(`Experience ${index + 1}: Company name is required`)
+        }
+      })
+    }
+    
+    // Validate education
+    if (content.education?.length > 0) {
+      content.education.forEach((edu, index) => {
+        if (!edu.degree || edu.degree.trim().length === 0) {
+          errors.push(`Education ${index + 1}: Degree is required`)
+        }
+        if (!edu.school || edu.school.trim().length === 0) {
+          errors.push(`Education ${index + 1}: School name is required`)
+        }
+      })
+    }
+    
+    // Validate skills
+    if (!content.skills || content.skills.length === 0) {
+      errors.push('At least one skill is required')
+    }
+    
+    return errors
   },
   
   // Section-specific update methods
@@ -278,14 +414,48 @@ export const useResumeEditor = create<ResumeEditorState>((set, get) => ({
 
 // Hook to get computed values
 export const useResumeEditorComputed = () => {
-  const { content, savedContent } = useResumeEditor()
+  const { 
+    content, 
+    savedContent, 
+    autoSaveEnabled, 
+    lastAutoSave, 
+    saving,
+    validateContent 
+  } = useResumeEditor()
   
   const isDirty = (() => {
     if (!content || !savedContent) return false
     return JSON.stringify(content) !== JSON.stringify(savedContent)
   })()
   
-  return { isDirty }
+  const validationErrors = (() => {
+    if (!content) return []
+    return validateContent(content)
+  })()
+  
+  const isValid = validationErrors.length === 0
+  
+  const autoSaveStatus = (() => {
+    if (!autoSaveEnabled) return 'disabled'
+    if (saving) return 'saving'
+    if (!isDirty) return 'up-to-date'
+    if (lastAutoSave && Date.now() - lastAutoSave < AUTO_SAVE_INTERVAL) return 'recent'
+    return 'pending'
+  })()
+  
+  const nextAutoSave = (() => {
+    if (!autoSaveEnabled || !lastAutoSave) return null
+    const nextSave = lastAutoSave + AUTO_SAVE_INTERVAL
+    return Math.max(0, nextSave - Date.now())
+  })()
+  
+  return { 
+    isDirty, 
+    validationErrors, 
+    isValid,
+    autoSaveStatus,
+    nextAutoSave
+  }
 }
 
 // Export helper functions for use in components

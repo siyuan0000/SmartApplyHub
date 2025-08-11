@@ -49,7 +49,7 @@ export class DeepSeekProvider extends BaseAIProvider {
     this.validateRequest(request)
     
     return this.withRetry(async () => {
-      const response = await this.client.chat.completions.create({
+      const completionParams: any = {
         model: this.config.model,
         messages: request.messages.map(msg => ({
           role: msg.role,
@@ -58,7 +58,18 @@ export class DeepSeekProvider extends BaseAIProvider {
         max_tokens: request.maxTokens || this.config.maxTokens || 4000,
         temperature: request.temperature ?? 0.7,
         stream: false
-      })
+      }
+
+      // Add structured output instruction for DeepSeek (they support JSON mode)
+      if (request.requiresStructured) {
+        // Add JSON instruction to system message if not already present
+        const lastSystemMessage = completionParams.messages.findLast((msg: any) => msg.role === 'system')
+        if (lastSystemMessage && !lastSystemMessage.content.includes('JSON')) {
+          lastSystemMessage.content += ' Always respond with valid JSON format only.'
+        }
+      }
+
+      const response = await this.client.chat.completions.create(completionParams)
 
       const content = response.choices[0]?.message?.content
       if (!content) {

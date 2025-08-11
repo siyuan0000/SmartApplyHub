@@ -10,6 +10,7 @@ export interface AIRequest {
   maxTokens?: number
   temperature?: number
   stream?: boolean
+  requiresStructured?: boolean
 }
 
 export interface AIResponse {

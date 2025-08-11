@@ -307,7 +307,8 @@ Please create a compelling, personalized cover letter.`
       messages: messageArray,
       maxTokens: taskConfig?.maxTokens,
       temperature: taskConfig?.temperature,
-      stream: false
+      stream: false,
+      requiresStructured: taskConfig?.requiresStructured
     }
   }
 
@@ -423,6 +424,16 @@ Please create a compelling, personalized cover letter.`
         }
       }
       
+      // Determine if this is a content enhancement request
+      const isEnhancementRequest = userMessage.toLowerCase().includes('enhance') ||
+                                   userMessage.toLowerCase().includes('improve') ||
+                                   userMessage.toLowerCase().includes('json') ||
+                                   userMessage.includes('enhancedText')
+      
+      if (isEnhancementRequest) {
+        return this.generateEnhancementFallback(userMessage, originalError)
+      }
+      
       // Generic fallback for other requests
       const errorGuidance = this.getErrorGuidance(originalError.message)
       return {
@@ -430,13 +441,13 @@ Please create a compelling, personalized cover letter.`
 
 ${errorGuidance}
 
-Original error: ${originalError.message}
-
 💡 What you can do:
 • Check your internet connection
 • Verify your API keys are properly configured
 • Try again in a few minutes
-• Contact support if the issue persists`,
+• Contact support if the issue persists
+
+⚠️ Note: You can continue editing your resume manually while AI services are unavailable.`,
         provider: 'local-fallback',
         usage: {
           promptTokens: request.messages.reduce((sum, m) => sum + m.content.length, 0) / 4,
@@ -518,6 +529,43 @@ Original error: ${originalError.message}
     aboutText += "I'm always eager to take on new challenges and contribute to meaningful projects that make a positive impact."
 
     return aboutText + "\n\n⚠️ Note: This is a template response generated when AI services are unavailable. Please try again later for a personalized About section, or edit this content to better reflect your unique experience and goals."
+  }
+
+  // Generate enhancement fallback for resume content
+  private generateEnhancementFallback(userMessage: string, originalError: Error): AIResponse {
+    this.log('Generating enhancement fallback response')
+    
+    // Try to extract original content from the user message
+    let originalContent = ''
+    const contentMatch = userMessage.match(/Current Content:\s*([^]*?)(?=\n\n|Requirements:|$)/i)
+    if (contentMatch) {
+      originalContent = contentMatch[1].trim()
+    }
+    
+    // Provide basic improvements if we can identify content
+    const enhancedContent = originalContent || "I am a professional with experience in my field. I bring value through my skills and dedication to excellence."
+    
+    // Return structured JSON response for enhancement requests
+    const fallbackResponse = {
+      originalText: originalContent,
+      enhancedText: enhancedContent + " (Note: AI enhancement temporarily unavailable - this is the original content. Please try again later or edit manually.)",
+      improvements: [
+        "AI enhancement services are currently unavailable",
+        "Please try again in a few minutes",
+        "You can edit the content manually in the meantime"
+      ],
+      confidence: 0.0
+    }
+    
+    return {
+      content: JSON.stringify(fallbackResponse),
+      provider: 'local-fallback',
+      usage: {
+        promptTokens: userMessage.length / 4,
+        completionTokens: 150,
+        totalTokens: 200
+      }
+    }
   }
 }
 

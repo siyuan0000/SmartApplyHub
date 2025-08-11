@@ -96,15 +96,42 @@ export class ResumeService {
     // Use the proper client context for consistency with the auth session
     const supabase = createClient()
     
+    console.log('🔍 [ResumeService] Fetching resumes for user:', userId)
+    
+    // First, check if we have a valid session
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+    console.log('🔐 [ResumeService] Current session:', { 
+      hasSession: !!session, 
+      userId: session?.user?.id,
+      sessionError: sessionError?.message 
+    })
+    
+    if (!session || !session.user) {
+      throw new Error('No valid authentication session. Please log in again.')
+    }
+    
+    if (session.user.id !== userId) {
+      throw new Error('Authentication mismatch. Please refresh and try again.')
+    }
+    
     const { data: resumes, error } = await supabase
       .from('resumes')
       .select('*')
       .eq('user_id', userId)
       .order('updated_at', { ascending: false })
 
+    console.log('📊 [ResumeService] Query result:', { 
+      resumeCount: resumes?.length || 0, 
+      error: error?.message 
+    })
+
     if (error) {
+      console.error('❌ [ResumeService] Database error details:', error)
       if (error.code === '42P01') {
         throw new Error('Database setup required: Please run the SQL schema in your Supabase dashboard. Check the console for instructions.')
+      }
+      if (error.message.includes('row-level security')) {
+        throw new Error('Permission denied. Please refresh the page and log in again.')
       }
       throw new Error(`Failed to fetch resumes: ${error.message}`)
     }

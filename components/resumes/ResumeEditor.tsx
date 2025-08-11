@@ -12,6 +12,7 @@ import { ResumeContent } from '@/lib/resume/parser'
 import { useResumeEditor, formatAchievements, parseAchievements } from '@/hooks/useResumeEditor'
 import { useAI } from '@/hooks/useAI'
 import { useAboutGeneration } from '@/hooks/useAboutGeneration'
+import { AIEnhancementModal } from './AIEnhancementModal'
 import { ResumeEditorSidebar } from './ResumeEditorSidebar'
 import { useUIStore } from '@/store/ui'
 import { useIsMobile } from '@/hooks/use-mobile'
@@ -46,7 +47,7 @@ export function ResumeEditor({ resumeId, onSave }: ResumeEditorProps) {
   } = useResumeEditor()
   
   const [activeSection, setActiveSection] = useState<string>('contact')
-  const { enhanceSection, isEnhancing, error: aiError, clearError: clearAIError } = useAI()
+  const { error: aiError, clearError: clearAIError } = useAI()
   const { 
     generateAbout, 
     generateAboutVariations, 
@@ -62,6 +63,16 @@ export function ResumeEditor({ resumeId, onSave }: ResumeEditorProps) {
   } = useAboutGeneration()
   
   const [showVariations, setShowVariations] = useState(false)
+  const [enhancingSection, setEnhancingSection] = useState<string | null>(null)
+  const [enhancementModal, setEnhancementModal] = useState<{
+    isOpen: boolean
+    sectionType: string
+    content: string
+  }>({
+    isOpen: false,
+    sectionType: '',
+    content: ''
+  })
   const isMobile = useIsMobile()
   const autoCollapseTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const { 
@@ -69,29 +80,236 @@ export function ResumeEditor({ resumeId, onSave }: ResumeEditorProps) {
     autoCollapseEditorSidebar
   } = useUIStore()
 
-  const handleEnhanceSection = async (sectionType: string, currentContent: string) => {
-    try {
-      clearAIError()
-      const result = await enhanceSection(sectionType, currentContent)
+  // Unified AI Enhancement System
+  const getContentForSection = (sectionType: string): string => {
+    if (!content) return ''
+    
+    switch (sectionType) {
+      case 'contact':
+        return `Name: ${content.contact.name || ''}
+Email: ${content.contact.email || ''}
+Phone: ${content.contact.phone || ''}
+Location: ${content.contact.location || ''}
+LinkedIn: ${content.contact.linkedin || ''}
+GitHub: ${content.contact.github || ''}`
       
-      if (content) {
-        // Update the specific section with enhanced content
-        switch (sectionType) {
-          case 'summary':
-            updateSummary(result.enhancedText)
-            break
-          case 'contact':
-            // For contact, we might enhance the summary/headline
-            break
-          default:
-            console.warn(`Enhancement not implemented for section: ${sectionType}`)
-        }
+      case 'about':
+      case 'summary':
+        return content.summary || ''
+      
+      case 'experience':
+        return content.experience.map((exp, index) => 
+          `Experience ${index + 1}:
+Title: ${exp.title}
+Company: ${exp.company}
+Description: ${exp.description || ''}
+Achievements: ${formatAchievements(exp.achievements)}`
+        ).join('\n\n')
+      
+      case 'education':
+        return content.education.map((edu, index) =>
+          `Education ${index + 1}:
+Degree: ${edu.degree}
+School: ${edu.school}
+Graduation: ${edu.graduationDate || ''}
+GPA: ${edu.gpa || ''}`
+        ).join('\n\n')
+      
+      case 'skills':
+        return content.skills.join(', ')
+      
+      case 'projects':
+        return (content.projects || []).map((project, index) =>
+          `Project ${index + 1}:
+Name: ${project.name}
+Description: ${project.description}
+Details: ${formatAchievements(project.details)}
+Technologies: ${project.technologies?.join(', ') || ''}
+URL: ${project.url || ''}`
+        ).join('\n\n')
+      
+      default:
+        return ''
+    }
+  }
+
+  const applyEnhancedContent = async (sectionType: string, enhancedContent: string) => {
+    if (!content) return
+    
+    try {
+      switch (sectionType) {
+        case 'about':
+        case 'summary':
+          updateSummary(enhancedContent)
+          break
         
-        // Auto-save after AI enhancement
-        await handleSave()
+        case 'skills':
+          // Parse skills from enhanced content
+          const skillsArray = enhancedContent
+            .split(/[,\n]/)
+            .map(skill => skill.trim())
+            .filter(skill => skill.length > 0)
+          updateSkills(skillsArray.join(', '))
+          break
+        
+        case 'contact':
+          // Parse contact information from enhanced content
+          const lines = enhancedContent.split('\n')
+          lines.forEach(line => {
+            const [field, value] = line.split(':').map(s => s.trim())
+            if (field && value) {
+              const fieldMap: Record<string, string> = {
+                'Name': 'name',
+                'Email': 'email', 
+                'Phone': 'phone',
+                'Location': 'location',
+                'LinkedIn': 'linkedin',
+                'GitHub': 'github'
+              }
+              const contactField = fieldMap[field]
+              if (contactField) {
+                updateContact(contactField as keyof typeof content.contact, value)
+              }
+            }
+          })
+          break
+        
+        case 'experience':
+          // Try to parse and apply enhanced content to the first experience entry
+          if (content.experience.length > 0) {
+            const enhancedLines = enhancedContent.split('\n').filter(line => line.trim())
+            const currentExp = { ...content.experience[0] }
+            
+            enhancedLines.forEach(line => {
+              if (line.toLowerCase().includes('title:') || line.toLowerCase().includes('position:')) {
+                currentExp.title = line.split(':')[1]?.trim() || currentExp.title
+              } else if (line.toLowerCase().includes('company:')) {
+                currentExp.company = line.split(':')[1]?.trim() || currentExp.company
+              } else if (line.toLowerCase().includes('description:')) {
+                currentExp.description = line.split(':')[1]?.trim() || currentExp.description
+              } else if (line.startsWith('•') || line.startsWith('-') || line.toLowerCase().includes('achievement')) {
+                if (!currentExp.achievements) currentExp.achievements = []
+                const achievement = line.replace(/^[•\-]\s*/, '').trim()
+                if (achievement && !currentExp.achievements.includes(achievement)) {
+                  currentExp.achievements.push(achievement)
+                }
+              }
+            })
+            
+            updateExperience(0, 'title', currentExp.title)
+            updateExperience(0, 'company', currentExp.company)
+            updateExperience(0, 'description', currentExp.description || '')
+            updateExperience(0, 'achievements', currentExp.achievements || [])
+          }
+          break
+        
+        case 'education':
+          // Try to parse and apply enhanced content to the first education entry
+          if (content.education.length > 0) {
+            const enhancedLines = enhancedContent.split('\n').filter(line => line.trim())
+            const currentEdu = { ...content.education[0] }
+            
+            enhancedLines.forEach(line => {
+              if (line.toLowerCase().includes('degree:')) {
+                currentEdu.degree = line.split(':')[1]?.trim() || currentEdu.degree
+              } else if (line.toLowerCase().includes('school:') || line.toLowerCase().includes('university:')) {
+                currentEdu.school = line.split(':')[1]?.trim() || currentEdu.school
+              } else if (line.toLowerCase().includes('graduation:') || line.toLowerCase().includes('year:')) {
+                currentEdu.graduationDate = line.split(':')[1]?.trim() || currentEdu.graduationDate
+              } else if (line.toLowerCase().includes('gpa:')) {
+                currentEdu.gpa = line.split(':')[1]?.trim() || currentEdu.gpa
+              }
+            })
+            
+            updateEducation(0, 'degree', currentEdu.degree)
+            updateEducation(0, 'school', currentEdu.school)
+            updateEducation(0, 'graduationDate', currentEdu.graduationDate || '')
+            updateEducation(0, 'gpa', currentEdu.gpa || '')
+          }
+          break
+        
+        case 'projects':
+          // Try to parse and apply enhanced content to the first project entry
+          if (content.projects && content.projects.length > 0) {
+            const enhancedLines = enhancedContent.split('\n').filter(line => line.trim())
+            const currentProject = { ...content.projects[0] }
+            
+            enhancedLines.forEach(line => {
+              if (line.toLowerCase().includes('name:') || line.toLowerCase().includes('project:')) {
+                currentProject.name = line.split(':')[1]?.trim() || currentProject.name
+              } else if (line.toLowerCase().includes('description:')) {
+                currentProject.description = line.split(':')[1]?.trim() || currentProject.description
+              } else if (line.toLowerCase().includes('technologies:') || line.toLowerCase().includes('tech:')) {
+                const techStr = line.split(':')[1]?.trim()
+                if (techStr) {
+                  currentProject.technologies = techStr.split(',').map(t => t.trim())
+                }
+              } else if (line.toLowerCase().includes('url:') || line.toLowerCase().includes('link:')) {
+                currentProject.url = line.split(':')[1]?.trim() || currentProject.url
+              } else if (line.startsWith('•') || line.startsWith('-') || line.toLowerCase().includes('feature')) {
+                if (!currentProject.details) currentProject.details = []
+                const detail = line.replace(/^[•\-]\s*/, '').trim()
+                if (detail && !currentProject.details.includes(detail)) {
+                  currentProject.details.push(detail)
+                }
+              }
+            })
+            
+            updateProject(0, 'name', currentProject.name)
+            updateProject(0, 'description', currentProject.description)
+            updateProject(0, 'technologies', currentProject.technologies || [])
+            updateProject(0, 'url', currentProject.url || '')
+            updateProject(0, 'details', currentProject.details || [])
+          }
+          break
+        
+        default:
+          console.warn(`Enhancement handler not implemented for section: ${sectionType}`)
       }
+      
+      // Auto-save after enhancement
+      await handleSave()
+      
     } catch (error) {
-      console.error('Failed to enhance section:', error)
+      console.error(`Failed to apply enhanced content for ${sectionType}:`, error)
+    }
+  }
+
+  const handleAIEnhance = (sectionType: string) => {
+    const currentContent = getContentForSection(sectionType)
+    
+    if (!currentContent.trim()) {
+      console.log(`🆕 Creating new ${sectionType} section from scratch with AI`)
+    } else {
+      console.log(`🎯 Enhancing existing ${sectionType} section content`)
+    }
+    
+    setEnhancingSection(sectionType)
+    setEnhancementModal({
+      isOpen: true,
+      sectionType,
+      content: currentContent // Can be empty - AI will generate from scratch
+    })
+  }
+
+  const closeEnhancementModal = () => {
+    setEnhancingSection(null)
+    setEnhancementModal({
+      isOpen: false,
+      sectionType: '',
+      content: ''
+    })
+  }
+
+  const handleSectionEnhanced = async (enhancedContent: string) => {
+    try {
+      await applyEnhancedContent(enhancementModal.sectionType, enhancedContent)
+      setEnhancingSection(null)
+      // Show success message
+      console.log(`✅ Successfully enhanced ${enhancementModal.sectionType} section`)
+    } catch (error) {
+      console.error(`❌ Failed to enhance ${enhancementModal.sectionType} section:`, error)
+      setEnhancingSection(null)
     }
   }
 
@@ -246,18 +464,52 @@ export function ResumeEditor({ resumeId, onSave }: ResumeEditorProps) {
             <Alert variant="destructive">
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>
-                About Generation Error: {aboutError}
-                <div className="mt-2 text-xs">
-                  {aboutError.includes('Failed to fetch') && (
-                    <p>💡 Try: Check your internet connection and API keys. The system will still generate a basic template for you.</p>
-                  )}
-                  {aboutError.includes('All providers failed') && (
-                    <p>💡 Tip: Make sure you have set at least one API key (OPENAI_API_KEY, DEEPSEEK_API_KEY) in your environment.</p>
-                  )}
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <div className="font-medium mb-1">AI Enhancement Failed</div>
+                    <div className="text-sm">{aboutError}</div>
+                    <div className="mt-2 text-xs opacity-90">
+                      {aboutError.includes('network') && (
+                        <p>💡 Check your internet connection and try again</p>
+                      )}
+                      {aboutError.includes('timeout') && (
+                        <p>💡 The AI service may be busy - please try again in a moment</p>
+                      )}
+                      {aboutError.includes('rate limit') && (
+                        <p>💡 Please wait a moment before trying again</p>
+                      )}
+                      {aboutError.includes('server error') && (
+                        <p>💡 The AI service encountered an issue - please try again</p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex gap-2 ml-4">
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      className="h-6 px-2 text-xs"
+                      onClick={() => {
+                        clearAboutError()
+                        if (content?.summary) {
+                          handleEnhanceAbout()
+                        } else {
+                          handleGenerateAbout()
+                        }
+                      }}
+                      disabled={isGenerating || isGeneratingVariations || isEnhancingAbout}
+                    >
+                      Retry
+                    </Button>
+                    <Button 
+                      size="sm" 
+                      variant="ghost" 
+                      className="h-6 px-2 text-xs"
+                      onClick={clearAboutError}
+                    >
+                      Dismiss
+                    </Button>
+                  </div>
                 </div>
-                <button onClick={clearAboutError} className="ml-2 text-sm underline">
-                  Dismiss
-                </button>
               </AlertDescription>
             </Alert>
           )}
@@ -285,11 +537,15 @@ export function ResumeEditor({ resumeId, onSave }: ResumeEditorProps) {
                   size="sm" 
                   variant="outline" 
                   className="ml-auto gap-1"
-                  onClick={() => handleEnhanceSection('contact', `${content?.contact.name || ''} ${content?.contact.email || ''}`)}
-                  disabled={isEnhancing}
+                  onClick={() => handleAIEnhance('contact')}
+                  disabled={enhancingSection === 'contact'}
                 >
-                  <Sparkles className="h-3 w-3" />
-                  {isEnhancing ? 'Enhancing...' : 'AI Enhance'}
+                  {enhancingSection === 'contact' ? (
+                    <div className="animate-spin h-3 w-3 border-2 border-current border-t-transparent rounded-full" />
+                  ) : (
+                    <Sparkles className="h-3 w-3" />
+                  )}
+                  {enhancingSection === 'contact' ? 'Enhancing...' : 'AI Enhance'}
                 </Button>
               </CardTitle>
             </CardHeader>
@@ -360,7 +616,17 @@ export function ResumeEditor({ resumeId, onSave }: ResumeEditorProps) {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <span>📝</span>
-                About Me (LinkedIn Style)
+                About
+                {(isGenerating || isGeneratingVariations || isEnhancingAbout) && (
+                  <div className="ml-2 flex items-center gap-2 px-3 py-1 bg-blue-50 dark:bg-blue-950/30 rounded-full">
+                    <div className="animate-spin h-3 w-3 border-2 border-blue-500 border-t-transparent rounded-full" />
+                    <span className="text-xs font-medium text-blue-700 dark:text-blue-300">
+                      {isGenerating && 'Generating new content...'}
+                      {isGeneratingVariations && 'Creating variations...'}
+                      {isEnhancingAbout && 'Enhancing existing content...'}
+                    </span>
+                  </div>
+                )}
                 <div className="ml-auto flex gap-2">
                   <Button 
                     size="sm" 
@@ -369,7 +635,11 @@ export function ResumeEditor({ resumeId, onSave }: ResumeEditorProps) {
                     onClick={handleGenerateAbout}
                     disabled={isGenerating || isGeneratingVariations || isEnhancingAbout}
                   >
-                    <Wand2 className="h-3 w-3" />
+                    {isGenerating ? (
+                      <div className="animate-spin h-3 w-3 border-2 border-current border-t-transparent rounded-full" />
+                    ) : (
+                      <Wand2 className="h-3 w-3" />
+                    )}
                     {isGenerating ? 'Generating...' : 'Generate'}
                   </Button>
                   {content?.summary && (
@@ -380,7 +650,11 @@ export function ResumeEditor({ resumeId, onSave }: ResumeEditorProps) {
                       onClick={handleEnhanceAbout}
                       disabled={isGenerating || isGeneratingVariations || isEnhancingAbout}
                     >
-                      <Sparkles className="h-3 w-3" />
+                      {isEnhancingAbout ? (
+                        <div className="animate-spin h-3 w-3 border-2 border-current border-t-transparent rounded-full" />
+                      ) : (
+                        <Sparkles className="h-3 w-3" />
+                      )}
                       {isEnhancingAbout ? 'Enhancing...' : 'Enhance'}
                     </Button>
                   )}
@@ -391,22 +665,52 @@ export function ResumeEditor({ resumeId, onSave }: ResumeEditorProps) {
                     onClick={handleGenerateVariations}
                     disabled={isGenerating || isGeneratingVariations || isEnhancingAbout}
                   >
-                    <RefreshCw className="h-3 w-3" />
+                    {isGeneratingVariations ? (
+                      <div className="animate-spin h-3 w-3 border-2 border-current border-t-transparent rounded-full" />
+                    ) : (
+                      <RefreshCw className="h-3 w-3" />
+                    )}
                     {isGeneratingVariations ? 'Generating...' : 'Variations'}
                   </Button>
                 </div>
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div>
+              <div className="relative">
                 <Label htmlFor="about">About Section</Label>
-                <Textarea
-                  id="about"
-                  value={content.summary || ''}
-                  onChange={(e) => updateSummary(e.target.value)}
-                  placeholder="Generate a professional LinkedIn-style about section using AI, or write your own compelling introduction that highlights your unique value proposition..."
-                  className="min-h-32"
-                />
+                <div className="relative">
+                  <Textarea
+                    id="about"
+                    value={content.summary || ''}
+                    onChange={(e) => updateSummary(e.target.value)}
+                    placeholder={isGenerating || isGeneratingVariations || isEnhancingAbout 
+                      ? "AI is working on your content..." 
+                      : "Generate a professional LinkedIn-style about section using AI, or write your own compelling introduction that highlights your unique value proposition..."
+                    }
+                    className={cn(
+                      "min-h-32 transition-opacity",
+                      (isGenerating || isGeneratingVariations || isEnhancingAbout) && "opacity-50"
+                    )}
+                    disabled={isGenerating || isGeneratingVariations || isEnhancingAbout}
+                  />
+                  {(isGenerating || isGeneratingVariations || isEnhancingAbout) && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-background/80 rounded-md">
+                      <div className="flex flex-col items-center gap-3">
+                        <div className="animate-spin h-8 w-8 border-3 border-primary border-t-transparent rounded-full" />
+                        <div className="text-center">
+                          <p className="text-sm font-medium text-primary">
+                            {isGenerating && '✨ Generating fresh content...'}
+                            {isGeneratingVariations && '🔄 Creating multiple variations...'}
+                            {isEnhancingAbout && '⚡ Enhancing your content...'}
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            This may take a few moments
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
                 <div className="flex items-center justify-between mt-2">
                   <p className="text-xs text-muted-foreground">
                     {content?.summary ? `${content.summary.split(/\s+/).length} words` : '0 words'} 
@@ -529,9 +833,19 @@ export function ResumeEditor({ resumeId, onSave }: ResumeEditorProps) {
                   <div className="flex items-center justify-between">
                     <h4 className="font-medium">Experience {index + 1}</h4>
                     <div className="flex gap-2">
-                      <Button size="sm" variant="outline" className="gap-1">
-                        <Sparkles className="h-3 w-3" />
-                        AI Enhance
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        className="gap-1"
+                        onClick={() => handleAIEnhance('experience')}
+                        disabled={enhancingSection === 'experience'}
+                      >
+                        {enhancingSection === 'experience' ? (
+                          <div className="animate-spin h-3 w-3 border-2 border-current border-t-transparent rounded-full" />
+                        ) : (
+                          <Sparkles className="h-3 w-3" />
+                        )}
+                        {enhancingSection === 'experience' ? 'Enhancing...' : 'AI Enhance'}
                       </Button>
                       <Button size="sm" variant="outline" onClick={() => removeExperience(index)}>
                         <Trash2 className="h-3 w-3" />
@@ -662,9 +976,19 @@ export function ResumeEditor({ resumeId, onSave }: ResumeEditorProps) {
               <CardTitle className="flex items-center gap-2">
                 <span>🔧</span>
                 Skills
-                <Button size="sm" variant="outline" className="ml-auto gap-1">
-                  <Sparkles className="h-3 w-3" />
-                  AI Enhance
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  className="ml-auto gap-1"
+                  onClick={() => handleAIEnhance('skills')}
+                  disabled={enhancingSection === 'skills'}
+                >
+                  {enhancingSection === 'skills' ? (
+                    <div className="animate-spin h-3 w-3 border-2 border-current border-t-transparent rounded-full" />
+                  ) : (
+                    <Sparkles className="h-3 w-3" />
+                  )}
+                  {enhancingSection === 'skills' ? 'Enhancing...' : 'AI Enhance'}
                 </Button>
               </CardTitle>
             </CardHeader>
@@ -707,9 +1031,19 @@ export function ResumeEditor({ resumeId, onSave }: ResumeEditorProps) {
                   <div className="flex items-center justify-between">
                     <h4 className="font-medium">Project {index + 1}</h4>
                     <div className="flex gap-2">
-                      <Button size="sm" variant="outline" className="gap-1">
-                        <Sparkles className="h-3 w-3" />
-                        AI Enhance
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        className="gap-1"
+                        onClick={() => handleAIEnhance('projects')}
+                        disabled={enhancingSection === 'projects'}
+                      >
+                        {enhancingSection === 'projects' ? (
+                          <div className="animate-spin h-3 w-3 border-2 border-current border-t-transparent rounded-full" />
+                        ) : (
+                          <Sparkles className="h-3 w-3" />
+                        )}
+                        {enhancingSection === 'projects' ? 'Enhancing...' : 'AI Enhance'}
                       </Button>
                       <Button size="sm" variant="outline" onClick={() => removeProject(index)}>
                         <Trash2 className="h-3 w-3" />
@@ -773,6 +1107,15 @@ export function ResumeEditor({ resumeId, onSave }: ResumeEditorProps) {
           </div>
         </div>
       </div>
+
+      {/* AI Enhancement Modal */}
+      <AIEnhancementModal
+        isOpen={enhancementModal.isOpen}
+        onClose={closeEnhancementModal}
+        sectionType={enhancementModal.sectionType}
+        originalContent={enhancementModal.content}
+        onEnhanced={handleSectionEnhanced}
+      />
     </div>
   )
 }

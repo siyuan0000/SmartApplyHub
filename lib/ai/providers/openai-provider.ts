@@ -54,7 +54,7 @@ export class OpenAIProvider extends BaseAIProvider {
     this.validateRequest(request)
     
     return this.withRetry(async () => {
-      const response = await this.client.chat.completions.create({
+      const completionParams: any = {
         model: this.config.model,
         messages: request.messages.map(msg => ({
           role: msg.role,
@@ -63,7 +63,22 @@ export class OpenAIProvider extends BaseAIProvider {
         max_tokens: request.maxTokens || this.config.maxTokens || 2000,
         temperature: request.temperature ?? 0.7,
         stream: false
-      })
+      }
+
+      // Add structured output support for newer models
+      if (request.requiresStructured && this.supportsStructuredOutput()) {
+        completionParams.response_format = { 
+          type: "json_object" 
+        }
+        
+        // Add JSON instruction to system message if not already present
+        const lastSystemMessage = completionParams.messages.findLast((msg: any) => msg.role === 'system')
+        if (lastSystemMessage && !lastSystemMessage.content.includes('JSON')) {
+          lastSystemMessage.content += ' Respond only with valid JSON format.'
+        }
+      }
+
+      const response = await this.client.chat.completions.create(completionParams)
 
       const content = response.choices[0]?.message?.content
       if (!content) {
@@ -81,6 +96,15 @@ export class OpenAIProvider extends BaseAIProvider {
         provider: this.name
       }
     })
+  }
+
+  private supportsStructuredOutput(): boolean {
+    const model = this.config.model.toLowerCase()
+    // Only newer models support structured output
+    return model.includes('gpt-4o') || 
+           model.includes('gpt-4-turbo') || 
+           model === 'gpt-3.5-turbo-1106' ||
+           model.includes('gpt-3.5-turbo-16k')
   }
 
   async* makeStreamingRequest(request: AIRequest): AsyncGenerator<AIStreamResponse> {
