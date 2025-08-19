@@ -8,6 +8,8 @@ export const revalidate = 0
 
 export async function POST(req: NextRequest) {
   try {
+    console.log('🔧 [About Enhancement API Debug] Starting enhance request...')
+    
     const body = await req.json()
     const { resumeData, section, content }: { 
       resumeData: ResumeContent, 
@@ -15,7 +17,15 @@ export async function POST(req: NextRequest) {
       content: string 
     } = body
     
+    console.log('🔧 [About Enhancement API Debug] Request data:', {
+      section,
+      hasResumeData: !!resumeData,
+      contentLength: content?.length || 0,
+      hasContent: !!content
+    })
+    
     if (!resumeData || !section || !content) {
+      console.log('🔧 [About Enhancement API Debug] Missing required data')
       return NextResponse.json(
         { error: 'Resume data, section, and content are required' },
         { 
@@ -25,8 +35,17 @@ export async function POST(req: NextRequest) {
       )
     }
     
+    console.log('🔧 [About Enhancement API Debug] Calling ContentEnhancerService...')
+    
     // Enhance the about content
     const result = await ContentEnhancerService.enhanceSection(section, content)
+    
+    console.log('🔧 [About Enhancement API Debug] Enhancement completed:', {
+      hasEnhancedText: !!result.enhancedText,
+      enhancedTextLength: result.enhancedText?.length || 0,
+      suggestionsCount: result.suggestions?.length || 0,
+      changesCount: result.changes?.length || 0
+    })
     
     // Map the response to match AboutGenerationResult interface
     const aboutResult = {
@@ -44,7 +63,11 @@ export async function POST(req: NextRequest) {
       }
     })
   } catch (error) {
-    console.error('Content enhancement API error:', error)
+    console.error('🔧 [About Enhancement API Debug] Enhancement failed:', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      errorType: error instanceof Error ? error.constructor.name : typeof error,
+      errorStack: error instanceof Error ? error.stack : undefined
+    })
     
     return NextResponse.json(
       { 

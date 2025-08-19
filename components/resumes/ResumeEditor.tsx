@@ -12,10 +12,13 @@ import { ResumeContent } from '@/lib/resume/parser'
 import { useResumeEditor, formatAchievements, parseAchievements } from '@/hooks/useResumeEditor'
 import { useAI } from '@/hooks/useAI'
 import { useAboutGeneration } from '@/hooks/useAboutGeneration'
+import { useSectionEnhancement, EnhancementContext, StreamInfo } from '@/hooks/useSectionEnhancement'
 import { AIEnhancementModal } from './AIEnhancementModal'
+import { SectionEnhanceStream } from './SectionEnhanceStream'
 import { ResumeEditorSidebar } from './ResumeEditorSidebar'
 import { useUIStore } from '@/store/ui'
 import { useIsMobile } from '@/hooks/use-mobile'
+import { useToast } from '@/hooks/use-toast'
 import { cn } from '@/lib/utils'
 import { Plus, Trash2, Sparkles, AlertCircle, RefreshCw, Wand2, Copy } from 'lucide-react'
 
@@ -73,7 +76,13 @@ export function ResumeEditor({ resumeId, onSave }: ResumeEditorProps) {
     sectionType: '',
     content: ''
   })
+  
+  // Stream state management
+  const { startEnhanceStream, streamedText, isEnhancing: isStreamEnhancing, error: streamError } = useSectionEnhancement()
+  const [, setActiveStreamInfo] = useState<StreamInfo | null>(null)
+  const [showStreamPane, setShowStreamPane] = useState(false)
   const isMobile = useIsMobile()
+  const { toast } = useToast()
   const autoCollapseTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const { 
     editorSidebarCollapsed,
@@ -301,14 +310,155 @@ URL: ${project.url || ''}`
     })
   }
 
-  const handleSectionEnhanced = async (enhancedContent: string) => {
+  // New streaming enhancement handler
+  const handleStartStream = async (context: EnhancementContext) => {
     try {
+      const streamInfo = startEnhanceStream(context)
+      setActiveStreamInfo(streamInfo)
+      setShowStreamPane(true)
+      setEnhancingSection(context.sectionType)
+      
+      // Wait for stream completion and handle errors
+      try {
+        await streamInfo.promise
+        // Stream completed successfully
+      } catch (streamError) {
+        
+        if (streamError instanceof Error) {
+          if (streamError.message === 'NO_PROVIDERS') {
+            toast({
+              title: "AI Enhancement Unavailable",
+              description: "All AI providers are currently unavailable. Please check your configuration and try again.",
+              variant: "destructive"
+            })
+          } else if (streamError.message.includes('API key') || streamError.message.includes('authentication') || streamError.message.includes('401')) {
+            toast({
+              title: "Authentication Error",
+              description: "AI API key is invalid or expired. Please check your configuration.",
+              variant: "destructive"
+            })
+          } else if (streamError.message.includes('network') || streamError.message.includes('fetch') || streamError.message.includes('timeout')) {
+            toast({
+              title: "Network Error",
+              description: "Unable to connect to AI services. Please check your internet connection and try again.",
+              variant: "destructive"
+            })
+          } else {
+            toast({
+              title: "Enhancement Failed",
+              description: `Error: ${streamError.message}`,
+              variant: "destructive"
+            })
+          }
+        } else {
+          toast({
+            title: "Enhancement Failed",
+            description: "An unexpected error occurred during enhancement. Please try again.",
+            variant: "destructive"
+          })
+        }
+        setShowStreamPane(false)
+        setActiveStreamInfo(null)
+        setEnhancingSection(null)
+      }
+    } catch (startError) {
+      toast({
+        title: "Enhancement Failed",
+        description: "Failed to start enhancement. Please try again.",
+        variant: "destructive"
+      })
+    }
+  }
+
+  // Extract enhanced content from stream
+  const extractEnhancedContentFromStream = (text: string): string => {
+    const match = text.match(/=== ENHANCED_CONTENT ===\s*([\s\S]*)$/i)
+    return match ? match[1].trim() : ''
+  }
+
+  // Handle copying enhanced content from stream
+  const handleCopyEnhancedFromStream = async () => {
+    if (!streamedText || !enhancingSection) return
+    
+    const enhancedContent = extractEnhancedContentFromStream(streamedText)
+    if (!enhancedContent) {
+      toast({
+        title: "No Enhanced Content",
+        description: "No enhanced content found to copy. Please wait for the AI to complete.",
+        variant: "destructive"
+      })
+      return
+    }
+    
+    try {
+      await applyEnhancedContent(enhancingSection, enhancedContent)
+      
+      toast({
+        title: "Content Applied",
+        description: `${enhancingSection} section has been updated with enhanced content.`,
+        variant: "default"
+      })
+      
+      // Close stream pane
+      setShowStreamPane(false)
+      setActiveStreamInfo(null)
+      setEnhancingSection(null)
+      
+    } catch (applyError) {
+      toast({
+        title: "Application Failed",
+        description: "Failed to apply enhanced content. Please try again.",
+        variant: "destructive"
+      })
+    }
+  }
+
+  // Close stream pane
+  const handleCloseStreamPane = () => {
+    setShowStreamPane(false)
+    setActiveStreamInfo(null)
+    setEnhancingSection(null)
+  }
+
+  const handleSectionEnhanced = async (result: import('@/hooks/useSectionEnhancement').SectionEnhancementResult) => {
+    // Only apply when user explicitly requests via "Copy Enhanced Content" button
+    // UI guard: Check for fallback result or empty enhanced text
+    if (result.provider === 'fallback' || !result.enhancedText.trim()) {
+      toast({
+        title: "AI Enhancement Unavailable",
+        description: "AI service unavailable – please try again later.",
+        variant: "destructive"
+      })
+      setEnhancingSection(null)
+      return
+    }
+    
+    try {
+      // Extract enhanced content - handle both string and object results
+      const enhancedContent = typeof result === 'string' ? result : result?.enhancedText || ''
+      
       await applyEnhancedContent(enhancementModal.sectionType, enhancedContent)
       setEnhancingSection(null)
-      // Show success message
-      console.log(`✅ Successfully enhanced ${enhancementModal.sectionType} section`)
+      
+      // Show success toast
+      toast({
+        title: "Content Applied",
+        description: `${enhancementModal.sectionType} section has been updated with enhanced content.`,
+        variant: "default"
+      })
+      
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`✅ Successfully enhanced ${enhancementModal.sectionType} section`)
+      }
     } catch (error) {
-      console.error(`❌ Failed to enhance ${enhancementModal.sectionType} section:`, error)
+      toast({
+        title: "Application Failed",
+        description: "Failed to apply enhanced content. Please try again.",
+        variant: "destructive"
+      })
+      if (process.env.NODE_ENV === 'development') {
+        console.error(`❌ Failed to enhance ${enhancementModal.sectionType} section:`, error)
+      }
       setEnhancingSection(null)
     }
   }
@@ -1115,7 +1265,20 @@ URL: ${project.url || ''}`
         sectionType={enhancementModal.sectionType}
         originalContent={enhancementModal.content}
         onEnhanced={handleSectionEnhanced}
+        onStartStream={handleStartStream}
       />
+
+      {/* Section Enhancement Stream Pane */}
+      {showStreamPane && (
+        <SectionEnhanceStream
+          streamedText={streamedText}
+          isEnhancing={isStreamEnhancing}
+          error={streamError}
+          sectionType={enhancingSection || ''}
+          onCopyEnhanced={handleCopyEnhancedFromStream}
+          onClose={handleCloseStreamPane}
+        />
+      )}
     </div>
   )
 }

@@ -155,8 +155,8 @@ export class AIRouter {
     // Check if any providers are available
     const availableProviders = this.getAvailableProviders()
     if (availableProviders.length === 0) {
-      this.log('No providers available, using local fallback immediately')
-      return this.generateLocalFallback(request, new Error('No AI providers configured - please check your environment variables and API keys'))
+      this.log('No providers available')
+      throw new Error('NO_PROVIDERS')
     }
     
     const provider = this.selectProvider(taskConfig?.preferredProvider, taskConfig?.task)
@@ -193,72 +193,40 @@ export class AIRouter {
     taskConfig?: Partial<AITaskConfig>
   ): AsyncGenerator<AIStreamResponse> {
     const request = this.buildRequest(messages, taskConfig)
-    const provider = this.selectProvider(taskConfig?.preferredProvider, taskConfig?.task)
+    
+    // Check if any providers are available
+    const availableProviders = this.getAvailableProviders()
+    if (availableProviders.length === 0) {
+      this.log('No providers available for streaming')
+      throw new Error('NO_PROVIDERS')
+    }
+    
+    // Get ordered list of providers to try (preferred first, then others)
+    const orderedProviders = this.getOrderedProviders(taskConfig?.preferredProvider, taskConfig?.task)
     
     this.requestCount++
-    this.log(`Stream request #${this.requestCount} routed to ${provider.name}`)
+    this.log(`Stream request #${this.requestCount} trying ${orderedProviders.length} providers`)
     
-    try {
-      yield* provider.makeStreamingRequest(request)
-      this.resetFailureCount(provider.name as AIProviderType)
-    } catch (error) {
-      this.incrementFailureCount(provider.name as AIProviderType)
+    for (const providerType of orderedProviders) {
+      const provider = this.providers.get(providerType)
+      if (!provider?.isAvailable()) continue
       
-      if (this.config.enableFallback) {
-        // For streaming, fallback to non-streaming
-        const fallbackResponse = await this.tryFallback(request, provider.name as AIProviderType, error as Error)
-        yield { content: fallbackResponse.content, done: true, usage: fallbackResponse.usage }
-      } else {
-        throw error
+      try {
+        this.log(`Attempting streaming with ${provider.name}`)
+        yield* provider.makeStreamingRequest(request)
+        this.resetFailureCount(provider.name as AIProviderType)
+        return // Success, exit the loop
+      } catch (error) {
+        this.incrementFailureCount(provider.name as AIProviderType)
+        const errorMessage = error instanceof Error ? error.message : String(error)
+        this.log(`Streaming failed with ${provider.name}: ${errorMessage}`)
+        // Continue to next provider
       }
     }
-  }
-
-  // Convenience methods for common tasks
-  async parseResume(rawText: string): Promise<AIResponse> {
-    return this.route(rawText, {
-      task: 'parsing',
-      temperature: 0.1,
-      maxTokens: 3000,
-      requiresStructured: true
-    })
-  }
-
-  async analyzeResume(resumeContent: object): Promise<AIResponse> {
-    const prompt = `Analyze this resume and provide detailed feedback:\n\n${JSON.stringify(resumeContent, null, 2)}`
-    return this.route(prompt, {
-      task: 'analysis',
-      temperature: 0.3,
-      maxTokens: 2000
-    })
-  }
-
-  async enhanceContent(content: string, jobDescription?: string): Promise<AIResponse> {
-    const prompt = jobDescription 
-      ? `Enhance this content for the following job:\n\nJob: ${jobDescription}\n\nContent: ${content}`
-      : `Enhance this content: ${content}`
     
-    return this.route(prompt, {
-      task: 'enhancement',
-      temperature: 0.5,
-      maxTokens: 1500
-    })
-  }
-
-  async generateCoverLetter(resumeContent: object, jobDescription: string): Promise<AIResponse> {
-    const prompt = `Generate a professional cover letter based on this resume and job description:
-
-Resume: ${JSON.stringify(resumeContent, null, 2)}
-
-Job Description: ${jobDescription}
-
-Please create a compelling, personalized cover letter.`
-
-    return this.route(prompt, {
-      task: 'generation',
-      temperature: 0.7,
-      maxTokens: 1000
-    })
+    // If all providers failed
+    this.log('All providers failed for streaming')
+    throw new Error('NO_PROVIDERS')
   }
 
   // Provider management
@@ -269,15 +237,43 @@ Please create a compelling, personalized cover letter.`
     })
   }
 
+  private getOrderedProviders(preferredProvider?: AIProviderType, task?: string): AIProviderType[] {
+    const availableProviders = this.getAvailableProviders()
+    
+    // Start with task-based preference if no explicit preferred provider
+    let orderedProviders: AIProviderType[] = []
+    
+    if (preferredProvider && availableProviders.includes(preferredProvider)) {
+      orderedProviders.push(preferredProvider)
+    } else if (task) {
+      const taskProvider = this.getPreferredProviderForTask(task)
+      if (taskProvider && availableProviders.includes(taskProvider)) {
+        orderedProviders.push(taskProvider)
+      }
+    }
+    
+    // Add default provider if not already included
+    if (!orderedProviders.includes(this.config.defaultProvider) && 
+        availableProviders.includes(this.config.defaultProvider)) {
+      orderedProviders.push(this.config.defaultProvider)
+    }
+    
+    // Add all remaining available providers
+    const remaining = availableProviders.filter(p => !orderedProviders.includes(p))
+    orderedProviders.push(...remaining)
+    
+    return orderedProviders
+  }
+
   getProviderStatus(): Record<AIProviderType, { available: boolean; failures: number }> {
     const status = {} as Record<AIProviderType, { available: boolean; failures: number }>
     
-    for (const [type, provider] of this.providers) {
+    this.providers.forEach((provider, type) => {
       status[type] = {
         available: provider.isAvailable(),
         failures: this.failureCount.get(type) || 0
       }
-    }
+    })
     
     return status
   }
@@ -339,7 +335,7 @@ Please create a compelling, personalized cover letter.`
     }
 
     // Last resort: any available provider
-    for (const provider of this.providers.values()) {
+    for (const provider of Array.from(this.providers.values())) {
       if (provider.isAvailable()) {
         return provider
       }
@@ -408,33 +404,8 @@ Please create a compelling, personalized cover letter.`
     try {
       // Extract the user's request to understand what they're asking for
       const userMessage = request.messages.find(m => m.role === 'user')?.content || ''
-      const isAboutGeneration = userMessage.toLowerCase().includes('linkedin about') || 
-                              userMessage.toLowerCase().includes('professional summary') ||
-                              userMessage.toLowerCase().includes('about section')
       
-      if (isAboutGeneration) {
-        return {
-          content: this.generateTemplateAbout(userMessage),
-          provider: 'local-fallback',
-          usage: {
-            promptTokens: request.messages.reduce((sum, m) => sum + m.content.length, 0) / 4,
-            completionTokens: 150,
-            totalTokens: 200
-          }
-        }
-      }
-      
-      // Determine if this is a content enhancement request
-      const isEnhancementRequest = userMessage.toLowerCase().includes('enhance') ||
-                                   userMessage.toLowerCase().includes('improve') ||
-                                   userMessage.toLowerCase().includes('json') ||
-                                   userMessage.includes('enhancedText')
-      
-      if (isEnhancementRequest) {
-        return this.generateEnhancementFallback(userMessage, originalError)
-      }
-      
-      // Generic fallback for other requests
+      // Generic fallback for requests
       const errorGuidance = this.getErrorGuidance(originalError.message)
       return {
         content: `I apologize, but I'm currently unable to process your request due to connectivity issues with AI services. 
@@ -492,80 +463,6 @@ ${errorGuidance}
     }
     
     return `❓ Unknown Issue: An unexpected error occurred. Please try again or contact support.`
-  }
-
-  // Generate a template-based About section when AI fails
-  private generateTemplateAbout(userMessage: string): string {
-    // Try to extract information from the user's message
-    const hasExperience = userMessage.toLowerCase().includes('engineer') || 
-                         userMessage.toLowerCase().includes('developer') ||
-                         userMessage.toLowerCase().includes('manager')
-    
-    const hasTech = userMessage.toLowerCase().includes('javascript') ||
-                   userMessage.toLowerCase().includes('python') ||
-                   userMessage.toLowerCase().includes('react') ||
-                   userMessage.toLowerCase().includes('node')
-    
-    const hasEducation = userMessage.toLowerCase().includes('university') ||
-                        userMessage.toLowerCase().includes('college') ||
-                        userMessage.toLowerCase().includes('degree')
-
-    // Generate a basic template-based about section
-    let aboutText = "I am a dedicated professional with a passion for innovation and excellence. "
-    
-    if (hasExperience) {
-      aboutText += "With proven experience in my field, I bring a unique combination of technical skills and strategic thinking to every project. "
-    }
-    
-    if (hasTech) {
-      aboutText += "My technical expertise spans modern technologies and frameworks, allowing me to build robust and scalable solutions. "
-    }
-    
-    if (hasEducation) {
-      aboutText += "My educational background provides a solid foundation for continuous learning and professional growth. "
-    }
-    
-    aboutText += "I am committed to delivering high-quality results and collaborating effectively with teams to achieve shared goals. "
-    aboutText += "I'm always eager to take on new challenges and contribute to meaningful projects that make a positive impact."
-
-    return aboutText + "\n\n⚠️ Note: This is a template response generated when AI services are unavailable. Please try again later for a personalized About section, or edit this content to better reflect your unique experience and goals."
-  }
-
-  // Generate enhancement fallback for resume content
-  private generateEnhancementFallback(userMessage: string, originalError: Error): AIResponse {
-    this.log('Generating enhancement fallback response')
-    
-    // Try to extract original content from the user message
-    let originalContent = ''
-    const contentMatch = userMessage.match(/Current Content:\s*([^]*?)(?=\n\n|Requirements:|$)/i)
-    if (contentMatch) {
-      originalContent = contentMatch[1].trim()
-    }
-    
-    // Provide basic improvements if we can identify content
-    const enhancedContent = originalContent || "I am a professional with experience in my field. I bring value through my skills and dedication to excellence."
-    
-    // Return structured JSON response for enhancement requests
-    const fallbackResponse = {
-      originalText: originalContent,
-      enhancedText: enhancedContent + " (Note: AI enhancement temporarily unavailable - this is the original content. Please try again later or edit manually.)",
-      improvements: [
-        "AI enhancement services are currently unavailable",
-        "Please try again in a few minutes",
-        "You can edit the content manually in the meantime"
-      ],
-      confidence: 0.0
-    }
-    
-    return {
-      content: JSON.stringify(fallbackResponse),
-      provider: 'local-fallback',
-      usage: {
-        promptTokens: userMessage.length / 4,
-        completionTokens: 150,
-        totalTokens: 200
-      }
-    }
   }
 }
 

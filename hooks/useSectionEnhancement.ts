@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { route2all } from '@/lib/ai/route2all'
 
 export interface SectionEnhancementResult {
   enhancedText: string
@@ -20,13 +19,20 @@ interface UseSectionEnhancementState {
   isEnhancing: boolean
   error: string | null
   lastResult: SectionEnhancementResult | null
+  streamedText: string
+}
+
+export interface StreamInfo {
+  streamId: string
+  promise: Promise<void>
 }
 
 export function useSectionEnhancement() {
   const [state, setState] = useState<UseSectionEnhancementState>({
     isEnhancing: false,
     error: null,
-    lastResult: null
+    lastResult: null,
+    streamedText: ''
   })
 
   /**
@@ -104,12 +110,7 @@ Your task is to:
 4. Optimize for both human recruiters and applicant tracking systems
 5. Provide specific, actionable improvements
 
-Always provide enhanced content that is:
-- Professional and polished
-- Quantified where possible
-- Relevant to modern hiring practices
-- Optimized for applicant tracking systems
-- Compelling to human recruiters`
+CRITICAL: You must respond in the exact delimiter format specified by the user. Follow the format instructions precisely.`
   }
 
   /**
@@ -158,6 +159,16 @@ Note: Since starting from scratch, create professional placeholder content that 
 Focus on making this section stand out while remaining truthful and professional.`
     }
 
+    prompt += `\n\n###
+Output *exactly* in this format – no markdown fences:
+
+=== ANALYSIS ===
+<bullet-point analysis of current content (or of empty state)>
+
+=== ENHANCED_CONTENT ===
+<fully improved ${context.sectionType} section, ready to paste verbatim>
+###`
+
     return prompt
   }
 
@@ -167,32 +178,55 @@ Focus on making this section stand out while remaining truthful and professional
   const enhanceSection = async (context: EnhancementContext): Promise<SectionEnhancementResult | null> => {
     setState(prev => ({ ...prev, isEnhancing: true, error: null }))
     
+    // Debug logging for troubleshooting
+    console.log('🔧 [AI Enhancement Debug] Starting non-stream enhancement...')
+    console.log('🔧 [AI Enhancement Debug] Context:', {
+      sectionType: context.sectionType,
+      hasOriginalContent: !!context.originalContent,
+      hasCustomPrompt: !!context.customPrompt,
+      hasJobDescription: !!context.jobDescription
+    })
+    
     try {
-      const hrInsights = context.hrInsights || getHRInsights(context.sectionType)
-      const systemPrompt = createSystemPrompt(context.sectionType, hrInsights)
-      const userPrompt = createUserPrompt(context)
-      
-      const response = await route2all([
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt }
-      ], {
-        task: 'enhancement',
-        temperature: 0.5,
-        maxTokens: 1000,
-        preferredProvider: 'openai' // OpenAI is better for professional writing
+      // Use API call instead of direct router access
+      const response = await fetch('/api/about/enhance', {
+        method: 'POST',
+        cache: 'no-store',
+        headers: { 
+          'Cache-Control': 'no-store',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ 
+          resumeData: {}, // Minimal data for API compatibility
+          section: context.sectionType,
+          content: context.originalContent || ''
+        })
       })
       
-      // Parse the response to extract enhanced text and suggestions
-      const content = response.content.trim()
-      const enhancedText = extractEnhancedContent(content)
-      const suggestions = extractSuggestions(content)
-      const changes = extractChanges(content)
+      if (!response.ok) {
+        let errorMessage = `HTTP ${response.status}`
+        try {
+          const errorData = await response.json()
+          errorMessage = errorData.error || errorMessage
+        } catch {
+          // Keep the HTTP status message
+        }
+        throw new Error(errorMessage)
+      }
       
+      const apiResult = await response.json()
+      console.log('🔧 [AI Enhancement Debug] API response received:', {
+        hasEnhancedText: !!apiResult.aboutText,
+        contentLength: apiResult.aboutText?.length || 0
+      })
+      
+      // Convert API response to expected format
+      // API returns AboutGenerationResult format, convert to SectionEnhancementResult
       const result: SectionEnhancementResult = {
-        enhancedText,
-        suggestions,
-        changes,
-        provider: response.provider
+        enhancedText: apiResult.aboutText || '',
+        suggestions: ['Content enhanced via API'],
+        changes: ['Professional language improvements', 'ATS optimization'],
+        provider: apiResult.provider || 'api'
       }
       
       setState(prev => ({ 
@@ -211,105 +245,238 @@ Focus on making this section stand out while remaining truthful and professional
         error: errorMessage,
         lastResult: null
       }))
-      console.error('Section enhancement failed:', error)
       
-      // Return a basic enhancement as fallback
-      return generateBasicEnhancement(context)
+      // Return fallback result without modifying content
+      return {
+        enhancedText: '',
+        suggestions: [],
+        changes: [],
+        provider: 'fallback'
+      }
     }
   }
 
   /**
-   * Extract enhanced content from AI response
+   * Enhance a resume section with streaming
    */
-  const extractEnhancedContent = (content: string): string => {
-    // Look for patterns like "Enhanced version:", "Improved content:", etc.
-    const patterns = [
-      /(?:Enhanced version:|Enhanced content:|Improved version:|Improved content:)\s*\n([\s\S]*?)(?:\n\n|$)/i,
-      /(?:Here's the enhanced|Here is the enhanced)([\s\S]*?)(?:\n\n|$)/i,
-      /```\s*([\s\S]*?)\s*```/,
-    ]
+  const enhanceSectionStream = async (context: EnhancementContext): Promise<void> => {
+    setState(prev => ({ ...prev, isEnhancing: true, error: null, streamedText: '' }))
     
+    // Debug logging for troubleshooting
+    console.log('🔧 [AI Enhancement Debug] Starting stream enhancement...')
+    console.log('🔧 [AI Enhancement Debug] Context:', {
+      sectionType: context.sectionType,
+      hasOriginalContent: !!context.originalContent,
+      hasCustomPrompt: !!context.customPrompt,
+      hasJobDescription: !!context.jobDescription
+    })
+    
+    try {
+      // Use new streaming API
+      const response = await fetch('/api/enhance/stream', {
+        method: 'POST',
+        cache: 'no-store',
+        headers: { 
+          'Cache-Control': 'no-store',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          sectionType: context.sectionType,
+          originalContent: context.originalContent,
+          customPrompt: context.customPrompt,
+          jobDescription: context.jobDescription,
+          hrInsights: context.hrInsights || getHRInsights(context.sectionType)
+        })
+      })
+      
+      if (!response.ok) {
+        let errorMessage = `HTTP ${response.status}`
+        try {
+          const errorText = await response.text()
+          errorMessage = errorText || errorMessage
+        } catch {
+          // Keep the HTTP status message
+        }
+        throw new Error(errorMessage)
+      }
+      
+      console.log('🔧 [AI Enhancement Debug] Stream response received, processing...')
+      
+      const reader = response.body?.getReader()
+      if (!reader) {
+        throw new Error('No reader available for stream')
+      }
+      
+      const decoder = new TextDecoder()
+      let chunkCount = 0
+      
+      while (true) {
+        const { done, value } = await reader.read()
+        
+        if (done) break
+        
+        chunkCount++
+        const chunk = decoder.decode(value)
+        setState(prev => ({
+          ...prev,
+          streamedText: prev.streamedText + chunk
+        }))
+        
+        if (chunkCount === 1) {
+          console.log('🔧 [AI Enhancement Debug] First chunk received successfully')
+        }
+      }
+      
+      console.log(`🔧 [AI Enhancement Debug] Stream completed with ${chunkCount} chunks`)
+      
+      setState(prev => ({ 
+        ...prev, 
+        isEnhancing: false,
+        lastResult: null // No auto-apply
+      }))
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Enhancement failed'
+      console.error('🔧 [AI Enhancement Debug] Stream enhancement failed:', {
+        error: errorMessage,
+        errorType: error instanceof Error ? error.constructor.name : typeof error,
+        errorStack: error instanceof Error ? error.stack : undefined
+      })
+      
+      setState(prev => ({ 
+        ...prev, 
+        isEnhancing: false, 
+        error: errorMessage
+      }))
+    }
+  }
+
+  /**
+   * Robust AI response parser with JSON-first approach and improved regex fallback
+   * @param raw - Raw AI response string
+   * @param provider - AI provider name (optional)
+   * @returns Parsed SectionEnhancementResult
+   */
+  const parseAiResponse = (raw: string, provider?: string): SectionEnhancementResult => {
+    // Normalize line endings
+    const content = raw.replace(/\r\n/g, '\n').trim()
+    
+    // Try to locate JSON via delimiters or first { ... } block
+    const jsonResult = tryParseJson(content)
+    if (jsonResult) {
+      return {
+        enhancedText: jsonResult.enhancedText || '',
+        suggestions: Array.isArray(jsonResult.suggestions) ? jsonResult.suggestions.filter((s: any) => typeof s === 'string' && s.trim().length >= 5) : [],
+        changes: Array.isArray(jsonResult.changes) ? jsonResult.changes.filter((c: any) => typeof c === 'string' && c.trim().length >= 5) : [],
+        provider
+      }
+    }
+    
+    // Fallback to improved regex parsing
+    return parseWithRegex(content, provider)
+  }
+  
+  /**
+   * Attempt to parse JSON from delimited content or first JSON block
+   */
+  const tryParseJson = (content: string): any => {
+    // Try delimiter-based extraction first
+    const delimiterMatch = content.match(/### OUTPUT \(valid JSON\)\s*\n([\s\S]*?)\n### END/i)
+    if (delimiterMatch) {
+      try {
+        return JSON.parse(delimiterMatch[1].trim())
+      } catch {
+        // Continue to next approach
+      }
+    }
+    
+    // Try to find first complete JSON object
+    const jsonMatch = content.match(/\{[\s\S]*?\}/)
+    if (jsonMatch) {
+      try {
+        return JSON.parse(jsonMatch[0])
+      } catch {
+        // Continue to fallback
+      }
+    }
+    
+    return null
+  }
+  
+  /**
+   * Parse content using improved regex patterns
+   */
+  const parseWithRegex = (content: string, provider?: string): SectionEnhancementResult => {
+    const bulletRegex = /^\s*(?:[\-*•+]|\d+[.)])\s*/gm
+    
+    // Extract enhanced text
+    let enhancedText = extractTextSection(content, [
+      /(?:enhanced version|enhanced content|improved version|improved content):\s*\n([\s\S]*?)(?:\n\n|$)/i,
+      /(?:here's the enhanced|here is the enhanced)([\s\S]*?)(?:\n\n|$)/i,
+      /```\s*([\s\S]*?)\s*```/
+    ])
+    
+    if (!enhancedText) {
+      // Fallback: use first substantial paragraph
+      const paragraphs = content.split('\n\n')
+      enhancedText = paragraphs.find(p => p.trim().length > 50) || content
+    }
+    
+    // Extract suggestions
+    const suggestions = extractListSection(content, [
+      /(?:suggestions|recommendations|additional suggestions):\s*\n([\s\S]*?)(?:\n\n|$)/i,
+      /(?:key improvements|improvements made):\s*\n([\s\S]*?)(?:\n\n|$)/i
+    ], bulletRegex)
+    
+    // Extract changes
+    const changes = extractListSection(content, [
+      /(?:changes made|key improvements|improvements):\s*\n([\s\S]*?)(?:\n\n|$)/i,
+      /(?:what i changed|modifications):\s*\n([\s\S]*?)(?:\n\n|$)/i
+    ], bulletRegex)
+    
+    return {
+      enhancedText: enhancedText.trim(),
+      suggestions,
+      changes,
+      provider
+    }
+  }
+  
+  /**
+   * Extract text section using multiple patterns
+   */
+  const extractTextSection = (content: string, patterns: RegExp[]): string => {
     for (const pattern of patterns) {
       const match = content.match(pattern)
       if (match && match[1]?.trim()) {
         return match[1].trim()
       }
     }
-    
-    // If no pattern matches, return the first substantial paragraph
-    const paragraphs = content.split('\n\n')
-    return paragraphs.find(p => p.trim().length > 50) || content
+    return ''
   }
-
+  
   /**
-   * Extract suggestions from AI response
+   * Extract list items using patterns and bullet regex
    */
-  const extractSuggestions = (content: string): string[] => {
-    const suggestions: string[] = []
-    
-    // Look for numbered or bulleted suggestions
-    const suggestionPatterns = [
-      /(?:Additional suggestions|Suggestions|Recommendations):\s*\n([\s\S]*?)(?:\n\n|$)/i,
-      /(?:Key improvements|Improvements made):\s*\n([\s\S]*?)(?:\n\n|$)/i
-    ]
-    
-    for (const pattern of suggestionPatterns) {
+  const extractListSection = (content: string, patterns: RegExp[], bulletRegex: RegExp): string[] => {
+    for (const pattern of patterns) {
       const match = content.match(pattern)
       if (match && match[1]) {
         const lines = match[1].split('\n')
+        const items: string[] = []
+        
         for (const line of lines) {
-          const cleaned = line.replace(/^[•\-*\d.]\s*/, '').trim()
-          if (cleaned && cleaned.length > 10) {
-            suggestions.push(cleaned)
+          const cleaned = line.replace(bulletRegex, '').trim()
+          if (cleaned && cleaned.length >= 5) {
+            items.push(cleaned)
           }
         }
-        break
-      }
-    }
-    
-    return suggestions
-  }
-
-  /**
-   * Extract changes made from AI response
-   */
-  const extractChanges = (content: string): string[] => {
-    const changes: string[] = []
-    
-    const changePatterns = [
-      /(?:Changes made|Key improvements|Improvements):\s*\n([\s\S]*?)(?:\n\n|$)/i,
-      /(?:What I changed|Modifications):\s*\n([\s\S]*?)(?:\n\n|$)/i
-    ]
-    
-    for (const pattern of changePatterns) {
-      const match = content.match(pattern)
-      if (match && match[1]) {
-        const lines = match[1].split('\n')
-        for (const line of lines) {
-          const cleaned = line.replace(/^[•\-*\d.]\s*/, '').trim()
-          if (cleaned && cleaned.length > 5) {
-            changes.push(cleaned)
-          }
+        
+        if (items.length > 0) {
+          return items
         }
-        break
       }
     }
-    
-    return changes
-  }
-
-  /**
-   * Generate basic enhancement when AI fails
-   */
-  const generateBasicEnhancement = (context: EnhancementContext): SectionEnhancementResult => {
-    const hrInsights = getHRInsights(context.sectionType)
-    
-    return {
-      enhancedText: context.originalContent + "\n\n💡 AI enhancement unavailable - please manually improve this section using the HR insights provided.",
-      suggestions: hrInsights,
-      changes: ["Unable to connect to AI services - manual enhancement required"],
-      provider: 'fallback'
-    }
+    return []
   }
 
   /**
@@ -317,6 +484,114 @@ Focus on making this section stand out while remaining truthful and professional
    */
   const clearError = () => {
     setState(prev => ({ ...prev, error: null }))
+  }
+
+  /**
+   * Start enhancement stream for a section (for use beneath sections)
+   * Returns { streamId, promise } for tracking stream lifecycle
+   */
+  const startEnhanceStream = (context: EnhancementContext): StreamInfo => {
+    const streamId = `enhance-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+    
+    const promise = (async () => {
+      setState(prev => ({ ...prev, isEnhancing: true, error: null, streamedText: '' }))
+      
+      // Debug logging for troubleshooting
+      console.log('🔧 [Stream Enhancement Debug] Starting stream enhancement...')
+      console.log('🔧 [Stream Enhancement Debug] Context:', {
+        sectionType: context.sectionType,
+        hasOriginalContent: !!context.originalContent,
+        hasCustomPrompt: !!context.customPrompt,
+        hasJobDescription: !!context.jobDescription,
+        streamId: streamId
+      })
+      
+      try {
+        console.log('🔧 [Stream Enhancement Debug] Making API call...')
+        
+        // Use new streaming API
+        const response = await fetch('/api/enhance/stream', {
+          method: 'POST',
+          cache: 'no-store',
+          headers: { 
+            'Cache-Control': 'no-store',
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            sectionType: context.sectionType,
+            originalContent: context.originalContent,
+            customPrompt: context.customPrompt,
+            jobDescription: context.jobDescription,
+            hrInsights: context.hrInsights || getHRInsights(context.sectionType)
+          })
+        })
+        
+        if (!response.ok) {
+          let errorMessage = `HTTP ${response.status}`
+          try {
+            const errorText = await response.text()
+            errorMessage = errorText || errorMessage
+          } catch {
+            // Keep the HTTP status message
+          }
+          throw new Error(errorMessage)
+        }
+        
+        console.log('🔧 [Stream Enhancement Debug] Stream response received, processing...')
+        
+        const reader = response.body?.getReader()
+        if (!reader) {
+          throw new Error('No reader available for stream')
+        }
+        
+        const decoder = new TextDecoder()
+        let chunkCount = 0
+        
+        while (true) {
+          const { done, value } = await reader.read()
+          
+          if (done) break
+          
+          chunkCount++
+          const chunk = decoder.decode(value)
+          setState(prev => ({
+            ...prev,
+            streamedText: prev.streamedText + chunk
+          }))
+          
+          if (chunkCount === 1) {
+            console.log('🔧 [Stream Enhancement Debug] First chunk received successfully')
+          }
+        }
+        
+        console.log(`🔧 [Stream Enhancement Debug] Stream completed with ${chunkCount} chunks`)
+        
+        setState(prev => ({ 
+          ...prev, 
+          isEnhancing: false,
+          lastResult: null // No auto-apply
+        }))
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Enhancement failed'
+        console.error('🔧 [Stream Enhancement Debug] Stream enhancement failed:', {
+          error: errorMessage,
+          errorType: error instanceof Error ? error.constructor.name : typeof error,
+          errorStack: error instanceof Error ? error.stack : undefined,
+          streamId: streamId
+        })
+        
+        setState(prev => ({ 
+          ...prev, 
+          isEnhancing: false, 
+          error: errorMessage
+        }))
+        
+        // Re-throw for caller to handle (e.g., toast NO_PROVIDERS)
+        throw error
+      }
+    })()
+    
+    return { streamId, promise }
   }
 
   /**
@@ -335,9 +610,12 @@ Focus on making this section stand out while remaining truthful and professional
     isEnhancing: state.isEnhancing,
     error: state.error,
     lastResult: state.lastResult,
+    streamedText: state.streamedText,
     
     // Actions
     enhanceSection,
+    enhanceSectionStream,
+    startEnhanceStream,
     getHRInsights,
     clearError,
     clearResults

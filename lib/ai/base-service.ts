@@ -49,7 +49,7 @@ export class BaseAIService {
       }
       
       // If still fails, try to clean up common markdown artifacts
-      let cleaned = response.content
+      const cleaned = response.content
         .replace(/```json\s*/g, '')
         .replace(/```\s*/g, '')
         .replace(/^[^{]*/, '')

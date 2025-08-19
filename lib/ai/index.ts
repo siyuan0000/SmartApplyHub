@@ -7,6 +7,9 @@ export type * from './types'
 // Provider system
 export * from './providers'
 
+// AI Utilities - new modular approach
+export * from './ai_util'
+
 // Updated base services
 export { BaseAIService, BaseOpenAIService } from './base-service'
 export { AIService } from './ai-service'

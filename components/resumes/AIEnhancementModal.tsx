@@ -13,14 +13,15 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Lightbulb, Sparkles, Wand2, AlertCircle, Target } from 'lucide-react'
-import { EnhancementContext, useSectionEnhancement } from '@/hooks/useSectionEnhancement'
+import { EnhancementContext, SectionEnhancementResult, useSectionEnhancement } from '@/hooks/useSectionEnhancement'
 
 interface AIEnhancementModalProps {
   isOpen: boolean
   onClose: () => void
   sectionType: string
   originalContent: string
-  onEnhanced: (enhancedContent: string) => void
+  onEnhanced: (result: SectionEnhancementResult) => void
+  onStartStream?: (context: EnhancementContext) => void
 }
 
 export function AIEnhancementModal({
@@ -28,9 +29,10 @@ export function AIEnhancementModal({
   onClose,
   sectionType,
   originalContent,
-  onEnhanced
+  onEnhanced,
+  onStartStream
 }: AIEnhancementModalProps) {
-  const { enhanceSection, getHRInsights, isEnhancing, error, clearError } = useSectionEnhancement()
+  const { enhanceSectionStream, getHRInsights, isEnhancing, error, clearError, streamedText } = useSectionEnhancement()
   const [customPrompt, setCustomPrompt] = useState('')
   const [jobDescription, setJobDescription] = useState('')
   const [selectedInsights, setSelectedInsights] = useState<string[]>([])
@@ -49,9 +51,35 @@ export function AIEnhancementModal({
       hrInsights: selectedInsights.length > 0 ? selectedInsights : undefined
     }
     
-    const result = await enhanceSection(context)
-    if (result && result.enhancedText) {
-      onEnhanced(result.enhancedText)
+    // If onStartStream is provided, use new flow (close modal immediately)
+    if (onStartStream) {
+      onStartStream(context)
+      onClose()
+      // Reset form
+      setCustomPrompt('')
+      setJobDescription('')
+      setSelectedInsights([])
+      return
+    }
+    
+    // Fallback to old flow for backwards compatibility
+    await enhanceSectionStream(context)
+  }
+
+  const extractEnhancedContent = (text: string): string => {
+    const match = text.match(/=== ENHANCED_CONTENT ===\s*([\s\S]*)$/i)
+    return match ? match[1].trim() : ''
+  }
+
+  const handleCopyEnhanced = () => {
+    const enhancedContent = extractEnhancedContent(streamedText)
+    if (enhancedContent) {
+      onEnhanced({
+        enhancedText: enhancedContent,
+        suggestions: [],
+        changes: [],
+        provider: 'stream'
+      })
       onClose()
       // Reset form
       setCustomPrompt('')
@@ -332,6 +360,34 @@ export function AIEnhancementModal({
             </div>
           </div>
         </div>
+
+        {/* Streaming Output */}
+        {(isEnhancing || streamedText) && (
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="p-1.5 bg-green-50 dark:bg-green-950/30 rounded-lg">
+                <Sparkles className="h-4 w-4 text-green-600 dark:text-green-400" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-lg">AI Response</h3>
+                <p className="text-sm text-muted-foreground">
+                  {isEnhancing ? 'Model is streaming...' : 'Enhancement complete'}
+                </p>
+              </div>
+            </div>
+            <pre className="whitespace-pre-wrap bg-slate-900 text-slate-50 p-4 rounded-lg h-60 overflow-y-auto">
+              {streamedText || 'Model is streaming...'}
+            </pre>
+            {!isEnhancing && streamedText && extractEnhancedContent(streamedText) && (
+              <Button 
+                onClick={handleCopyEnhanced}
+                className="gap-2 bg-green-600 hover:bg-green-700 text-white"
+              >
+                <span>Copy Enhanced Content</span>
+              </Button>
+            )}
+          </div>
+        )}
 
         <DialogFooter className="gap-3 pt-6 border-t">
           <Button 
