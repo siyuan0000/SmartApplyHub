@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useParams } from 'next/navigation'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { ResumeEditor } from '@/components/resumes/ResumeEditor'
@@ -9,7 +9,7 @@ import { TemplatePanel } from '@/components/resumes/TemplatePanel'
 import { Button } from '@/components/ui/button'
 import { useResumeEditor, useResumeEditorComputed } from '@/hooks/useResumeEditor'
 import { ResumeLanguage } from '@/lib/templates'
-import { ArrowLeft, Eye, Download, Edit, AlertCircle, Save } from 'lucide-react'
+import { ArrowLeft, Eye, Download, Edit, AlertCircle, Save, ChevronRight } from 'lucide-react'
 import Link from 'next/link'
 
 export default function ResumePage() {
@@ -18,10 +18,24 @@ export default function ResumePage() {
   const { content, saving, saveResume } = useResumeEditor()
   const { isDirty } = useResumeEditorComputed()
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>()
+  const [previewCollapsed, setPreviewCollapsed] = useState(false)
+  const [isStreamPaneOpen, setIsStreamPaneOpen] = useState(false)
 
   // Get detected language from content
   const detectedLanguage = (content?.detected_language || 'en') as ResumeLanguage
   const originalHeaders = content?.original_headers || {}
+
+  // Auto-collapse preview when AI stream pane opens
+  useEffect(() => {
+    if (isStreamPaneOpen && !previewCollapsed) {
+      setPreviewCollapsed(true)
+    }
+  }, [isStreamPaneOpen, previewCollapsed])
+
+  // Handle stream pane toggle from ResumeEditor
+  const handleStreamPaneToggle = useCallback((isOpen: boolean) => {
+    setIsStreamPaneOpen(isOpen)
+  }, [])
 
   // Prevent navigation away with unsaved changes
   useEffect(() => {
@@ -136,35 +150,74 @@ export default function ResumePage() {
         </div>
 
         {/* Split View Content */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-[calc(100vh-12rem)]">
-          {/* Editor Panel */}
-          <div className="bg-background border rounded-lg overflow-hidden flex flex-col">
-            <div className="border-b bg-muted/50 px-4 py-2 flex-shrink-0">
-              <h3 className="font-medium flex items-center gap-2">
-                <Edit className="h-4 w-4" />
-                Editor
-              </h3>
+        <div className="relative">
+          <div className={`grid gap-6 h-[calc(100vh-12rem)] transition-all duration-300 ${
+            previewCollapsed 
+              ? 'grid-cols-1' 
+              : 'grid-cols-1 lg:grid-cols-2'
+          }`}>
+            {/* Editor Panel */}
+            <div className="bg-background border rounded-lg overflow-hidden flex flex-col">
+              <div className="border-b bg-muted/50 px-4 py-2 flex-shrink-0">
+                <h3 className="font-medium flex items-center gap-2">
+                  <Edit className="h-4 w-4" />
+                  Editor
+                </h3>
+              </div>
+              <div className="overflow-y-auto flex-1 p-4 space-y-4">
+                {/* Template Selection */}
+                <TemplatePanel
+                  currentTemplateId={selectedTemplateId}
+                  detectedLanguage={detectedLanguage}
+                  onTemplateSelect={setSelectedTemplateId}
+                />
+                
+                {/* Resume Editor */}
+                <ResumeEditor 
+                  resumeId={resumeId} 
+                  onStreamPaneToggle={handleStreamPaneToggle}
+                />
+              </div>
             </div>
-            <div className="overflow-y-auto flex-1 p-4 space-y-4">
-              {/* Template Selection */}
-              <TemplatePanel
-                currentTemplateId={selectedTemplateId}
-                detectedLanguage={detectedLanguage}
-                onTemplateSelect={setSelectedTemplateId}
-              />
-              
-              {/* Resume Editor */}
-              <ResumeEditor resumeId={resumeId} />
-            </div>
-          </div>
 
-          {/* Preview Panel */}
-          <div className="bg-background border rounded-lg overflow-hidden flex flex-col">
+            {/* Show Preview Button - positioned on right side when collapsed */}
+            {previewCollapsed && (
+              <div className="fixed right-4 top-1/2 transform -translate-y-1/2 z-10">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPreviewCollapsed(false)}
+                  className="gap-2 px-3 py-8 border-dashed hover:bg-muted/50 shadow-lg"
+                  title="Show preview"
+                >
+                  <div className="flex flex-col items-center gap-1">
+                    <Eye className="h-5 w-5" />
+                    <span className="text-xs font-medium writing-mode-vertical">Show Preview</span>
+                  </div>
+                </Button>
+              </div>
+            )}
+
+            {/* Preview Panel */}
+            <div className={`bg-background border rounded-lg overflow-hidden flex flex-col transition-all duration-300 ${
+              previewCollapsed ? 'hidden' : 'block'
+            }`}>
             <div className="border-b bg-muted/50 px-4 py-2 flex-shrink-0">
-              <h3 className="font-medium flex items-center gap-2">
-                <Eye className="h-4 w-4" />
-                Preview
-              </h3>
+              <div className="flex items-center justify-between">
+                <h3 className="font-medium flex items-center gap-2">
+                  <Eye className="h-4 w-4" />
+                  Preview
+                </h3>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setPreviewCollapsed(true)}
+                  className="h-6 w-6 p-0 hover:bg-muted"
+                  title="Collapse preview"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
             <div className="overflow-y-auto flex-1">
               <ResumePreview 
@@ -174,11 +227,16 @@ export default function ResumePage() {
                 originalHeaders={originalHeaders}
               />
             </div>
+            </div>
           </div>
         </div>
 
         {/* Mobile Stack View */}
         <style jsx>{`
+          .writing-mode-vertical {
+            writing-mode: vertical-rl;
+            text-orientation: mixed;
+          }
           @media (max-width: 1023px) {
             .grid.lg\\:grid-cols-2 {
               grid-template-columns: 1fr !important;

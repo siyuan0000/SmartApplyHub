@@ -25,9 +25,10 @@ import { Plus, Trash2, Sparkles, AlertCircle, RefreshCw, Wand2, Copy } from 'luc
 interface ResumeEditorProps {
   resumeId: string
   onSave?: (content: ResumeContent) => void
+  onStreamPaneToggle?: (isOpen: boolean) => void
 }
 
-export function ResumeEditor({ resumeId, onSave }: ResumeEditorProps) {
+export function ResumeEditor({ resumeId, onSave, onStreamPaneToggle }: ResumeEditorProps) {
   const { 
     content, 
     loading, 
@@ -88,6 +89,11 @@ export function ResumeEditor({ resumeId, onSave }: ResumeEditorProps) {
     editorSidebarCollapsed,
     autoCollapseEditorSidebar
   } = useUIStore()
+
+  // Notify parent when stream pane toggles
+  useEffect(() => {
+    onStreamPaneToggle?.(showStreamPane)
+  }, [showStreamPane, onStreamPaneToggle])
 
   // Unified AI Enhancement System
   const getContentForSection = (sectionType: string): string => {
@@ -583,22 +589,21 @@ URL: ${project.url || ''}`
 
   return (
     <div className="flex h-full">
-      {/* Editor Sidebar */}
       <ResumeEditorSidebar
         sections={sections}
         activeSection={activeSection}
         onSectionChange={setActiveSection}
       />
       
-      {/* Main Content */}
-      <div 
-        className={cn(
-          "flex-1 transition-all duration-300 ease-in-out",
-          "overflow-y-auto"
-        )}
-        onClick={handleMainContentClick}
-      >
-        <div className="p-4 space-y-4">
+      <div className="flex flex-1 min-w-0">
+        <div 
+          className={cn(
+            "flex-1 transition-all duration-300 ease-in-out",
+            "overflow-y-auto min-w-0"
+          )}
+          onClick={handleMainContentClick}
+        >
+          <div className="p-4 space-y-4">
           {aiError && (
             <Alert variant="destructive">
               <AlertCircle className="h-4 w-4" />
@@ -1256,6 +1261,19 @@ URL: ${project.url || ''}`
         )}
           </div>
         </div>
+        </div>
+
+        {/* Section Enhancement Stream Pane - positioned next to editor */}
+        {showStreamPane && (
+          <SectionEnhanceStream
+            streamedText={streamedText}
+            isEnhancing={isStreamEnhancing}
+            error={streamError}
+            sectionType={enhancingSection || ''}
+            onCopyEnhanced={handleCopyEnhancedFromStream}
+            onClose={handleCloseStreamPane}
+          />
+        )}
       </div>
 
       {/* AI Enhancement Modal */}
@@ -1267,18 +1285,6 @@ URL: ${project.url || ''}`
         onEnhanced={handleSectionEnhanced}
         onStartStream={handleStartStream}
       />
-
-      {/* Section Enhancement Stream Pane */}
-      {showStreamPane && (
-        <SectionEnhanceStream
-          streamedText={streamedText}
-          isEnhancing={isStreamEnhancing}
-          error={streamError}
-          sectionType={enhancingSection || ''}
-          onCopyEnhanced={handleCopyEnhancedFromStream}
-          onClose={handleCloseStreamPane}
-        />
-      )}
     </div>
   )
 }

@@ -3,6 +3,8 @@
 import { useEffect, useMemo } from 'react'
 import { useResumeEditor } from '@/hooks/useResumeEditor'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Button } from '@/components/ui/button'
+import { X } from 'lucide-react'
 import { PreviewHeader } from './preview/PreviewHeader'
 import { PreviewSummary } from './preview/PreviewSummary'
 import { PreviewExperience } from './preview/PreviewExperience'
@@ -16,9 +18,10 @@ interface ResumePreviewProps {
   templateId?: string
   detectedLanguage?: 'en' | 'zh'
   originalHeaders?: Record<string, string>
+  onClose?: () => void
 }
 
-export function ResumePreview({ resumeId, templateId, detectedLanguage, originalHeaders }: ResumePreviewProps) {
+export function ResumePreview({ resumeId, templateId, detectedLanguage, originalHeaders, onClose }: ResumePreviewProps) {
   const { content, loading, loadResume } = useResumeEditor()
 
   useEffect(() => {
@@ -88,38 +91,23 @@ export function ResumePreview({ resumeId, templateId, detectedLanguage, original
         )
       case 'summary':
         return content.summary ? (
-          <section key="summary">
-            <h2 className="section-header">{sectionDisplayName}</h2>
-            <PreviewSummary summary={content.summary} />
-          </section>
+          <PreviewSummary key="summary" summary={content.summary} sectionTitle={sectionDisplayName} />
         ) : null
       case 'education':
         return content.education && content.education.length > 0 ? (
-          <section key="education">
-            <h2 className="section-header">{sectionDisplayName}</h2>
-            <PreviewEducation education={content.education} />
-          </section>
+          <PreviewEducation key="education" education={content.education} sectionTitle={sectionDisplayName} />
         ) : null
       case 'experience':
         return content.experience && content.experience.length > 0 ? (
-          <section key="experience">
-            <h2 className="section-header">{sectionDisplayName}</h2>
-            <PreviewExperience experience={content.experience} />
-          </section>
+          <PreviewExperience key="experience" experience={content.experience} sectionTitle={sectionDisplayName} />
         ) : null
       case 'projects':
         return content.projects && content.projects.length > 0 ? (
-          <section key="projects">
-            <h2 className="section-header">{sectionDisplayName}</h2>
-            <PreviewProjects projects={content.projects} />
-          </section>
+          <PreviewProjects key="projects" projects={content.projects} sectionTitle={sectionDisplayName} />
         ) : null
       case 'skills':
         return content.skills && content.skills.length > 0 ? (
-          <section key="skills">
-            <h2 className="section-header">{sectionDisplayName}</h2>
-            <PreviewSkills skills={content.skills} />
-          </section>
+          <PreviewSkills key="skills" skills={content.skills} sectionTitle={sectionDisplayName} />
         ) : null
       default:
         return null
@@ -129,10 +117,21 @@ export function ResumePreview({ resumeId, templateId, detectedLanguage, original
   const sectionOrder = getSectionOrder()
 
   return (
-    <div className={`resume-preview bg-white resume-template-${templateContext.template.id}`}>
+    <div className={`resume-preview bg-white resume-template-${templateContext.template.id} relative`}>
+      {/* Close button */}
+      {onClose && (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="absolute top-2 right-2 z-10 h-6 w-6 p-0 hover:bg-gray-100"
+          onClick={onClose}
+        >
+          <X className="h-3 w-3" />
+        </Button>
+      )}
       <div className="w-full">
         {/* Print-friendly container */}
-        <div className="bg-white shadow-sm min-h-full p-4 print:p-6 print:shadow-none print:min-h-0">
+        <div className="bg-white shadow-sm min-h-full p-3 print:p-6 print:shadow-none print:min-h-0 text-sm">
           {sectionOrder.map(renderSection).filter(Boolean)}
         </div>
       </div>
@@ -181,20 +180,20 @@ export function ResumePreview({ resumeId, templateId, detectedLanguage, original
           
           /* Typography for print */
           .resume-preview h1 {
-            font-size: 20pt !important;
-            margin-bottom: 8pt !important;
+            font-size: 18pt !important;
+            margin-bottom: 6pt !important;
           }
           
           .resume-preview h2 {
-            font-size: 14pt !important;
-            margin-bottom: 6pt !important;
-            margin-top: 12pt !important;
+            font-size: 12pt !important;
+            margin-bottom: 4pt !important;
+            margin-top: 8pt !important;
             color: #000 !important;
           }
           
           .resume-preview h3 {
-            font-size: 12pt !important;
-            margin-bottom: 3pt !important;
+            font-size: 11pt !important;
+            margin-bottom: 2pt !important;
             color: #000 !important;
           }
           
@@ -267,10 +266,27 @@ export function ResumePreview({ resumeId, templateId, detectedLanguage, original
           }
         }
         
+        /* Screen styles for smaller text */
+        .resume-preview {
+          font-size: 13px;
+        }
+        
+        .resume-preview h1 {
+          font-size: 1.4rem;
+        }
+        
+        .resume-preview h2 {
+          font-size: 1.1rem;
+        }
+        
+        .resume-preview h3 {
+          font-size: 1rem;
+        }
+        
         @media screen and (max-width: 768px) {
           /* Mobile responsiveness */
           .resume-preview {
-            font-size: 14px;
+            font-size: 12px;
           }
           
           .resume-preview .flex-wrap {
