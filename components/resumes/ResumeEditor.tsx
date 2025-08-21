@@ -10,17 +10,15 @@ import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { ResumeContent } from '@/lib/resume/parser'
 import { useResumeEditor, formatAchievements, parseAchievements } from '@/hooks/useResumeEditor'
+import { useResumeHistory } from '@/hooks/useResumeHistory'
 import { useAI } from '@/hooks/useAI'
 import { useAboutGeneration } from '@/hooks/useAboutGeneration'
-import { useSectionEnhancement, EnhancementContext, StreamInfo } from '@/hooks/useSectionEnhancement'
-import { AIEnhancementModal } from './AIEnhancementModal'
-import { SectionEnhanceStream } from './SectionEnhanceStream'
+import { AIEnhancementLab } from './AIEnhancementLab'
 import { ResumeEditorSidebar } from './ResumeEditorSidebar'
 import { useUIStore } from '@/store/ui'
 import { useIsMobile } from '@/hooks/use-mobile'
-import { useToast } from '@/hooks/use-toast'
 import { cn } from '@/lib/utils'
-import { Plus, Trash2, Sparkles, AlertCircle, RefreshCw, Wand2, Copy } from 'lucide-react'
+import { Plus, Trash2, Sparkles, AlertCircle, RefreshCw, Wand2, Copy, Undo2, Redo2, Save, History } from 'lucide-react'
 
 interface ResumeEditorProps {
   resumeId: string
@@ -32,9 +30,9 @@ export function ResumeEditor({ resumeId, onSave, onStreamPaneToggle }: ResumeEdi
   const { 
     content, 
     loading, 
+    saving,
     error,
     loadResume, 
-    saveResume, 
     clearError,
     updateContact,
     updateSummary,
@@ -47,8 +45,14 @@ export function ResumeEditor({ resumeId, onSave, onStreamPaneToggle }: ResumeEdi
     updateSkills,
     addProject,
     updateProject,
-    removeProject
+    removeProject,
+    applyAIEnhancement,
+    undo,
+    redo,
+    forceSave
   } = useResumeEditor()
+  
+  const { canUndo, canRedo, getHistoryInfo } = useResumeHistory()
   
   const [activeSection, setActiveSection] = useState<string>('contact')
   const { error: aiError, clearError: clearAIError } = useAI()
@@ -68,32 +72,21 @@ export function ResumeEditor({ resumeId, onSave, onStreamPaneToggle }: ResumeEdi
   
   const [showVariations, setShowVariations] = useState(false)
   const [enhancingSection, setEnhancingSection] = useState<string | null>(null)
-  const [enhancementModal, setEnhancementModal] = useState<{
-    isOpen: boolean
-    sectionType: string
-    content: string
-  }>({
-    isOpen: false,
-    sectionType: '',
-    content: ''
-  })
   
-  // Stream state management
-  const { startEnhanceStream, streamedText, isEnhancing: isStreamEnhancing, error: streamError } = useSectionEnhancement()
-  const [, setActiveStreamInfo] = useState<StreamInfo | null>(null)
-  const [showStreamPane, setShowStreamPane] = useState(false)
+  // AI Enhancement Lab state
+  const [showEnhancementLab, setShowEnhancementLab] = useState(false)
+  
   const isMobile = useIsMobile()
-  const { toast } = useToast()
   const autoCollapseTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const { 
     editorSidebarCollapsed,
     autoCollapseEditorSidebar
   } = useUIStore()
 
-  // Notify parent when stream pane toggles
+  // Notify parent when AI lab toggles
   useEffect(() => {
-    onStreamPaneToggle?.(showStreamPane)
-  }, [showStreamPane, onStreamPaneToggle])
+    onStreamPaneToggle?.(showEnhancementLab)
+  }, [showEnhancementLab, onStreamPaneToggle])
 
   // Unified AI Enhancement System
   const getContentForSection = (sectionType: string): string => {
@@ -148,6 +141,17 @@ URL: ${project.url || ''}`
     }
   }
 
+  // Handle field-level content application
+  const applyEnhancedField = async (fieldPath: string, value: string) => {
+    if (!content) return
+    
+    try {
+      await applyAIEnhancement(fieldPath, value, `Enhanced ${fieldPath.split('.').pop()}`)
+    } catch (error) {
+      console.error(`Failed to apply AI enhancement to ${fieldPath}:`, error)
+    }
+  }
+  
   const applyEnhancedContent = async (sectionType: string, enhancedContent: string) => {
     if (!content) return
     
@@ -300,174 +304,15 @@ URL: ${project.url || ''}`
     }
     
     setEnhancingSection(sectionType)
-    setEnhancementModal({
-      isOpen: true,
-      sectionType,
-      content: currentContent // Can be empty - AI will generate from scratch
-    })
+    setActiveSection(sectionType) // Switch to the section being enhanced
+    setShowEnhancementLab(true) // Open the AI lab
   }
 
-  const closeEnhancementModal = () => {
+  const handleCloseEnhancementLab = () => {
     setEnhancingSection(null)
-    setEnhancementModal({
-      isOpen: false,
-      sectionType: '',
-      content: ''
-    })
+    setShowEnhancementLab(false)
   }
 
-  // New streaming enhancement handler
-  const handleStartStream = async (context: EnhancementContext) => {
-    try {
-      const streamInfo = startEnhanceStream(context)
-      setActiveStreamInfo(streamInfo)
-      setShowStreamPane(true)
-      setEnhancingSection(context.sectionType)
-      
-      // Wait for stream completion and handle errors
-      try {
-        await streamInfo.promise
-        // Stream completed successfully
-      } catch (streamError) {
-        
-        if (streamError instanceof Error) {
-          if (streamError.message === 'NO_PROVIDERS') {
-            toast({
-              title: "AI Enhancement Unavailable",
-              description: "All AI providers are currently unavailable. Please check your configuration and try again.",
-              variant: "destructive"
-            })
-          } else if (streamError.message.includes('API key') || streamError.message.includes('authentication') || streamError.message.includes('401')) {
-            toast({
-              title: "Authentication Error",
-              description: "AI API key is invalid or expired. Please check your configuration.",
-              variant: "destructive"
-            })
-          } else if (streamError.message.includes('network') || streamError.message.includes('fetch') || streamError.message.includes('timeout')) {
-            toast({
-              title: "Network Error",
-              description: "Unable to connect to AI services. Please check your internet connection and try again.",
-              variant: "destructive"
-            })
-          } else {
-            toast({
-              title: "Enhancement Failed",
-              description: `Error: ${streamError.message}`,
-              variant: "destructive"
-            })
-          }
-        } else {
-          toast({
-            title: "Enhancement Failed",
-            description: "An unexpected error occurred during enhancement. Please try again.",
-            variant: "destructive"
-          })
-        }
-        setShowStreamPane(false)
-        setActiveStreamInfo(null)
-        setEnhancingSection(null)
-      }
-    } catch (startError) {
-      toast({
-        title: "Enhancement Failed",
-        description: "Failed to start enhancement. Please try again.",
-        variant: "destructive"
-      })
-    }
-  }
-
-  // Extract enhanced content from stream
-  const extractEnhancedContentFromStream = (text: string): string => {
-    const match = text.match(/=== ENHANCED_CONTENT ===\s*([\s\S]*)$/i)
-    return match ? match[1].trim() : ''
-  }
-
-  // Handle copying enhanced content from stream
-  const handleCopyEnhancedFromStream = async () => {
-    if (!streamedText || !enhancingSection) return
-    
-    const enhancedContent = extractEnhancedContentFromStream(streamedText)
-    if (!enhancedContent) {
-      toast({
-        title: "No Enhanced Content",
-        description: "No enhanced content found to copy. Please wait for the AI to complete.",
-        variant: "destructive"
-      })
-      return
-    }
-    
-    try {
-      await applyEnhancedContent(enhancingSection, enhancedContent)
-      
-      toast({
-        title: "Content Applied",
-        description: `${enhancingSection} section has been updated with enhanced content.`,
-        variant: "default"
-      })
-      
-      // Close stream pane
-      setShowStreamPane(false)
-      setActiveStreamInfo(null)
-      setEnhancingSection(null)
-      
-    } catch (applyError) {
-      toast({
-        title: "Application Failed",
-        description: "Failed to apply enhanced content. Please try again.",
-        variant: "destructive"
-      })
-    }
-  }
-
-  // Close stream pane
-  const handleCloseStreamPane = () => {
-    setShowStreamPane(false)
-    setActiveStreamInfo(null)
-    setEnhancingSection(null)
-  }
-
-  const handleSectionEnhanced = async (result: import('@/hooks/useSectionEnhancement').SectionEnhancementResult) => {
-    // Only apply when user explicitly requests via "Copy Enhanced Content" button
-    // UI guard: Check for fallback result or empty enhanced text
-    if (result.provider === 'fallback' || !result.enhancedText.trim()) {
-      toast({
-        title: "AI Enhancement Unavailable",
-        description: "AI service unavailable – please try again later.",
-        variant: "destructive"
-      })
-      setEnhancingSection(null)
-      return
-    }
-    
-    try {
-      // Extract enhanced content - handle both string and object results
-      const enhancedContent = typeof result === 'string' ? result : result?.enhancedText || ''
-      
-      await applyEnhancedContent(enhancementModal.sectionType, enhancedContent)
-      setEnhancingSection(null)
-      
-      // Show success toast
-      toast({
-        title: "Content Applied",
-        description: `${enhancementModal.sectionType} section has been updated with enhanced content.`,
-        variant: "default"
-      })
-      
-      if (process.env.NODE_ENV === 'development') {
-        console.log(`✅ Successfully enhanced ${enhancementModal.sectionType} section`)
-      }
-    } catch (error) {
-      toast({
-        title: "Application Failed",
-        description: "Failed to apply enhanced content. Please try again.",
-        variant: "destructive"
-      })
-      if (process.env.NODE_ENV === 'development') {
-        console.error(`❌ Failed to enhance ${enhancementModal.sectionType} section:`, error)
-      }
-      setEnhancingSection(null)
-    }
-  }
 
   useEffect(() => {
     if (resumeId) {
@@ -476,10 +321,18 @@ URL: ${project.url || ''}`
   }, [resumeId, loadResume])
 
   const handleSave = async () => {
-    await saveResume()
+    await forceSave()
     if (content) {
       onSave?.(content)
     }
+  }
+  
+  const handleUndo = () => {
+    undo()
+  }
+  
+  const handleRedo = () => {
+    redo()
   }
 
   // Auto-collapse functionality for main content area
@@ -599,11 +452,102 @@ URL: ${project.url || ''}`
         <div 
           className={cn(
             "flex-1 transition-all duration-300 ease-in-out",
-            "overflow-y-auto min-w-0"
+            "overflow-y-auto min-w-0",
+            showEnhancementLab && "pr-[500px]"
           )}
           onClick={handleMainContentClick}
         >
           <div className="p-4 space-y-4">
+          
+          {/* Global AI Tools */}
+          {!showEnhancementLab && (
+            <div className="bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-950/30 dark:to-pink-950/30 rounded-xl p-4 border border-purple-200 dark:border-purple-800">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-gradient-to-r from-purple-500 to-pink-500 rounded-lg">
+                    <Wand2 className="h-5 w-5 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-lg bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
+                      AI Enhancement Tools
+                    </h3>
+                    <p className="text-sm text-muted-foreground">
+                      Professional-grade AI tools powered by HR expertise
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  onClick={() => setShowEnhancementLab(true)}
+                  className="gap-2 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-medium px-6"
+                >
+                  <Sparkles className="h-4 w-4" />
+                  Open Enhancement Lab
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Editor Controls */}
+          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30 rounded-xl p-4 border border-blue-200 dark:border-blue-800">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-lg">
+                  <History className="h-5 w-5 text-white" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-lg bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+                    Editor Controls
+                  </h3>
+                  <p className="text-sm text-muted-foreground">
+                    Save, undo, and manage your changes
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleUndo}
+                  disabled={!canUndo()}
+                  className="gap-1"
+                >
+                  <Undo2 className="h-4 w-4" />
+                  Undo
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleRedo}
+                  disabled={!canRedo()}
+                  className="gap-1"
+                >
+                  <Redo2 className="h-4 w-4" />
+                  Redo
+                </Button>
+                <Button
+                  onClick={handleSave}
+                  disabled={saving}
+                  className="gap-2 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white font-medium px-4"
+                >
+                  {saving ? (
+                    <RefreshCw className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Save className="h-4 w-4" />
+                  )}
+                  {saving ? 'Saving...' : 'Save'}
+                </Button>
+              </div>
+            </div>
+            {(() => {
+              const historyInfo = getHistoryInfo()
+              return historyInfo.total > 0 && (
+                <div className="mt-2 text-xs text-muted-foreground">
+                  History: {historyInfo.current}/{historyInfo.total} changes
+                </div>
+              )
+            })()}
+          </div>
+
           {aiError && (
             <Alert variant="destructive">
               <AlertCircle className="h-4 w-4" />
@@ -1262,28 +1206,16 @@ URL: ${project.url || ''}`
           </div>
         </div>
         </div>
-
-        {/* Section Enhancement Stream Pane - positioned next to editor */}
-        {showStreamPane && (
-          <SectionEnhanceStream
-            streamedText={streamedText}
-            isEnhancing={isStreamEnhancing}
-            error={streamError}
-            sectionType={enhancingSection || ''}
-            onCopyEnhanced={handleCopyEnhancedFromStream}
-            onClose={handleCloseStreamPane}
-          />
-        )}
       </div>
 
-      {/* AI Enhancement Modal */}
-      <AIEnhancementModal
-        isOpen={enhancementModal.isOpen}
-        onClose={closeEnhancementModal}
-        sectionType={enhancementModal.sectionType}
-        originalContent={enhancementModal.content}
-        onEnhanced={handleSectionEnhanced}
-        onStartStream={handleStartStream}
+      {/* AI Enhancement Lab */}
+      <AIEnhancementLab
+        isOpen={showEnhancementLab}
+        onClose={handleCloseEnhancementLab}
+        resumeContent={content}
+        onApplyEnhancement={applyEnhancedContent}
+        onApplyField={applyEnhancedField}
+        activeSection={activeSection}
       />
     </div>
   )

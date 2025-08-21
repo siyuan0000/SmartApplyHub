@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { ResumeContent, ResumeExperience, ResumeEducation, ResumeProject } from '@/lib/resume/parser'
 import { ResumeService } from '@/lib/resume/service'
+import { useResumeHistory } from './useResumeHistory'
 
 interface ResumeEditorState {
   // Core state
@@ -12,16 +13,20 @@ interface ResumeEditorState {
   resumeId: string | null
   autoSaveEnabled: boolean
   lastAutoSave: number | null
+  isUndoRedoAction: boolean
   
   // Actions
   loadResume: (id: string) => Promise<void>
-  updateContent: (content: ResumeContent) => void
+  updateContent: (content: ResumeContent, skipHistory?: boolean) => void
   saveResume: (retryCount?: number) => Promise<void>
   resetChanges: () => void
   clearError: () => void
   enableAutoSave: () => void
   disableAutoSave: () => void
   validateContent: (content: ResumeContent) => string[]
+  undo: () => void
+  redo: () => void
+  forceSave: () => Promise<void>
   
   // Section-specific updates
   updateContact: (field: string, value: string) => void
@@ -36,6 +41,9 @@ interface ResumeEditorState {
   updateProject: (index: number, field: string, value: string | string[]) => void
   addProject: () => void
   removeProject: (index: number) => void
+  
+  // AI Enhancement specific
+  applyAIEnhancement: (fieldPath: string, value: string, action: string) => Promise<void>
 }
 
 // Helper functions for bullet point handling
@@ -64,6 +72,7 @@ export const useResumeEditor = create<ResumeEditorState>((set, get) => ({
   resumeId: null,
   autoSaveEnabled: false,
   lastAutoSave: null,
+  isUndoRedoAction: false,
   
   // Load resume from database
   loadResume: async (id: string) => {
@@ -72,6 +81,12 @@ export const useResumeEditor = create<ResumeEditorState>((set, get) => ({
       const resume = await ResumeService.getResume(id)
       if (resume) {
         const content = ResumeService.parseResumeContent(resume)
+        
+        // Initialize history with loaded content
+        const { addToHistory, clearHistory } = useResumeHistory.getState()
+        clearHistory()
+        addToHistory(content, 'load', 'Resume loaded from database')
+        
         set({ 
           content,
           savedContent: structuredClone(content), // Deep copy for comparison
@@ -90,8 +105,16 @@ export const useResumeEditor = create<ResumeEditorState>((set, get) => ({
   },
   
   // Update entire content
-  updateContent: (content: ResumeContent) => {
-    set({ content })
+  updateContent: (content: ResumeContent, skipHistory = false) => {
+    const { isUndoRedoAction } = get()
+    
+    // Add to history unless this is an undo/redo action or explicitly skipped
+    if (!skipHistory && !isUndoRedoAction) {
+      const { addToHistory } = useResumeHistory.getState()
+      addToHistory(content, 'update', 'Content updated')
+    }
+    
+    set({ content, isUndoRedoAction: false })
   },
   
   // Save changes to database with retry logic
@@ -119,7 +142,8 @@ export const useResumeEditor = create<ResumeEditorState>((set, get) => ({
       set({ 
         savedContent: structuredClone(content), // Update saved state
         saving: false,
-        error: null
+        error: null,
+        lastAutoSave: Date.now()
       })
       
     } catch (error) {
@@ -169,6 +193,31 @@ export const useResumeEditor = create<ResumeEditorState>((set, get) => ({
   // Clear error state
   clearError: () => {
     set({ error: null })
+  },
+  
+  // Undo/Redo functionality
+  undo: () => {
+    const { undo } = useResumeHistory.getState()
+    const previousContent = undo()
+    
+    if (previousContent) {
+      set({ content: previousContent, isUndoRedoAction: true })
+    }
+  },
+  
+  redo: () => {
+    const { redo } = useResumeHistory.getState()
+    const nextContent = redo()
+    
+    if (nextContent) {
+      set({ content: nextContent, isUndoRedoAction: true })
+    }
+  },
+  
+  // Force save (for manual save button)
+  forceSave: async () => {
+    const { saveResume } = get()
+    await saveResume()
   },
   
   // Enable auto-save
@@ -252,42 +301,99 @@ export const useResumeEditor = create<ResumeEditorState>((set, get) => ({
     return errors
   },
   
-  // Section-specific update methods
-  updateContact: (field: string, value: string) => {
-    const { content } = get()
+  // AI Enhancement specific
+  applyAIEnhancement: async (fieldPath: string, value: string, action: string) => {
+    const { content, updateContent, saveResume } = get()
     if (!content) return
     
-    set({
-      content: {
-        ...content,
-        contact: { ...content.contact, [field]: value }
+    const pathParts = fieldPath.split('.')
+    let updatedContent = structuredClone(content)
+    
+    try {
+      if (pathParts[0] === 'contact') {
+        updatedContent.contact = { ...updatedContent.contact, [pathParts[1]]: value }
+      } else if (pathParts[0] === 'summary') {
+        updatedContent.summary = value
+      } else if (pathParts[0] === 'skills') {
+        const skillsArray = value.split(',').map(skill => skill.trim()).filter(skill => skill.length > 0)
+        updatedContent.skills = skillsArray
+      } else if (pathParts[0] === 'experience') {
+        const index = parseInt(pathParts[1])
+        const field = pathParts[2]
+        
+        if (field === 'achievements') {
+          const achievements = value.split('\n').map(a => a.replace(/^\u2022\s*/, '').trim()).filter(a => a)
+          updatedContent.experience[index] = { ...updatedContent.experience[index], achievements }
+        } else {
+          updatedContent.experience[index] = { ...updatedContent.experience[index], [field]: value }
+        }
+      } else if (pathParts[0] === 'education') {
+        const index = parseInt(pathParts[1])
+        const field = pathParts[2]
+        updatedContent.education[index] = { ...updatedContent.education[index], [field]: value }
+      } else if (pathParts[0] === 'projects') {
+        const index = parseInt(pathParts[1])
+        const field = pathParts[2]
+        
+        if (field === 'details') {
+          const details = value.split('\n').map(d => d.replace(/^\u2022\s*/, '').trim()).filter(d => d)
+          updatedContent.projects![index] = { ...updatedContent.projects![index], details }
+        } else if (field === 'technologies') {
+          const technologies = value.split(',').map(t => t.trim()).filter(t => t)
+          updatedContent.projects![index] = { ...updatedContent.projects![index], technologies }
+        } else {
+          updatedContent.projects![index] = { ...updatedContent.projects![index], [field]: value }
+        }
       }
-    })
+      
+      // Add to history with specific action description
+      const { addToHistory } = useResumeHistory.getState()
+      addToHistory(updatedContent, 'ai_enhancement', `Applied AI enhancement: ${action}`)
+      
+      // Update content and save immediately
+      updateContent(updatedContent, true) // Skip history since we already added it
+      await saveResume()
+      
+    } catch (error) {
+      console.error(`Failed to apply AI enhancement to ${fieldPath}:`, error)
+      throw error
+    }
+  },
+  
+  // Section-specific update methods
+  updateContact: (field: string, value: string) => {
+    const { content, updateContent } = get()
+    if (!content) return
+    
+    const updatedContent = {
+      ...content,
+      contact: { ...content.contact, [field]: value }
+    }
+    
+    updateContent(updatedContent)
   },
   
   updateSummary: (summary: string) => {
-    const { content } = get()
+    const { content, updateContent } = get()
     if (!content) return
     
-    set({
-      content: { ...content, summary }
-    })
+    const updatedContent = { ...content, summary }
+    updateContent(updatedContent)
   },
   
   updateExperience: (index: number, field: string, value: string | string[]) => {
-    const { content } = get()
+    const { content, updateContent } = get()
     if (!content) return
     
     const updatedExperience = [...content.experience]
     updatedExperience[index] = { ...updatedExperience[index], [field]: value }
     
-    set({
-      content: { ...content, experience: updatedExperience }
-    })
+    const updatedContent = { ...content, experience: updatedExperience }
+    updateContent(updatedContent)
   },
   
   addExperience: () => {
-    const { content } = get()
+    const { content, updateContent } = get()
     if (!content) return
     
     const newExperience: ResumeExperience = {
@@ -296,24 +402,28 @@ export const useResumeEditor = create<ResumeEditorState>((set, get) => ({
       description: ''
     }
     
-    set({
-      content: {
-        ...content,
-        experience: [...content.experience, newExperience]
-      }
-    })
+    const updatedContent = {
+      ...content,
+      experience: [...content.experience, newExperience]
+    }
+    
+    const { addToHistory } = useResumeHistory.getState()
+    addToHistory(updatedContent, 'add_experience', 'Added new experience entry')
+    updateContent(updatedContent, true)
   },
   
   removeExperience: (index: number) => {
-    const { content } = get()
+    const { content, updateContent } = get()
     if (!content) return
     
-    set({
-      content: {
-        ...content,
-        experience: content.experience.filter((_, i) => i !== index)
-      }
-    })
+    const updatedContent = {
+      ...content,
+      experience: content.experience.filter((_, i) => i !== index)
+    }
+    
+    const { addToHistory } = useResumeHistory.getState()
+    addToHistory(updatedContent, 'remove_experience', `Removed experience entry ${index + 1}`)
+    updateContent(updatedContent, true)
   },
   
   updateEducation: (index: number, field: string, value: string) => {
@@ -358,14 +468,13 @@ export const useResumeEditor = create<ResumeEditorState>((set, get) => ({
   },
   
   updateSkills: (skills: string) => {
-    const { content } = get()
+    const { content, updateContent } = get()
     if (!content) return
     
     const skillsArray = skills.split(',').map(skill => skill.trim()).filter(skill => skill.length > 0)
     
-    set({
-      content: { ...content, skills: skillsArray }
-    })
+    const updatedContent = { ...content, skills: skillsArray }
+    updateContent(updatedContent)
   },
   
   updateProject: (index: number, field: string, value: string | string[]) => {

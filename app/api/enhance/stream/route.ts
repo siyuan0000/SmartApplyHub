@@ -9,14 +9,16 @@ export async function POST(req: NextRequest) {
     console.log('🔧 [Stream Enhancement API Debug] Starting stream enhance request...')
     
     const body = await req.json()
-    const { sectionType, originalContent, customPrompt, jobDescription, hrInsights } = body
+    const { sectionType, originalContent, customPrompt, jobDescription, hrInsights, systemPrompt: customSystemPrompt, userPrompt: customUserPrompt } = body
     
     console.log('🔧 [Stream Enhancement API Debug] Request data:', {
       sectionType,
       hasOriginalContent: !!originalContent,
       hasCustomPrompt: !!customPrompt,
       hasJobDescription: !!jobDescription,
-      hasHrInsights: !!hrInsights
+      hasHrInsights: !!hrInsights,
+      hasCustomSystemPrompt: !!customSystemPrompt,
+      hasCustomUserPrompt: !!customUserPrompt
     })
     
     if (!sectionType) {
@@ -24,9 +26,9 @@ export async function POST(req: NextRequest) {
       return new Response('Section type is required', { status: 400 })
     }
     
-    // Create prompts similar to the hook logic
-    const systemPrompt = createSystemPrompt(sectionType, hrInsights)
-    const userPrompt = createUserPrompt({
+    // Use custom prompts if provided, otherwise create default prompts
+    const systemPrompt = customSystemPrompt || createSystemPrompt(sectionType, hrInsights)
+    const userPrompt = customUserPrompt || createUserPrompt({
       sectionType,
       originalContent: originalContent || '',
       customPrompt,

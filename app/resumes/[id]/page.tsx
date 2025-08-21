@@ -9,8 +9,10 @@ import { TemplatePanel } from '@/components/resumes/TemplatePanel'
 import { Button } from '@/components/ui/button'
 import { useResumeEditor, useResumeEditorComputed } from '@/hooks/useResumeEditor'
 import { ResumeLanguage } from '@/lib/templates'
+import { PDFGenerator } from '@/lib/pdf-generator'
 import { ArrowLeft, Eye, Download, Edit, AlertCircle, Save, ChevronRight } from 'lucide-react'
 import Link from 'next/link'
+import { toast } from 'sonner'
 
 export default function ResumePage() {
   const params = useParams()
@@ -78,8 +80,34 @@ export default function ResumePage() {
     }
   }
 
-  const handlePrint = () => {
-    window.print()
+  const handlePrint = async () => {
+    try {
+      // Show loading state
+      toast.loading('Generating PDF...', { id: 'pdf-generation' })
+      
+      // Ensure preview is visible before generating PDF
+      if (previewCollapsed) {
+        setPreviewCollapsed(false)
+        // Wait a bit for the preview to render
+        await new Promise(resolve => setTimeout(resolve, 500))
+      }
+      
+      await PDFGenerator.generateResumePreviewPDF({
+        quality: 0.98,
+        scale: 2,
+        margin: 0.5
+      })
+      
+      toast.success('PDF generated successfully!', { id: 'pdf-generation' })
+    } catch (error) {
+      console.error('PDF generation failed:', error)
+      toast.error(
+        error instanceof Error 
+          ? error.message 
+          : 'Failed to generate PDF. Please try again.',
+        { id: 'pdf-generation' }
+      )
+    }
   }
 
 

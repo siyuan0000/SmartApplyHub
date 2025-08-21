@@ -123,7 +123,7 @@ export function ResumePreview({ resumeId, templateId, detectedLanguage, original
         <Button
           variant="ghost"
           size="sm"
-          className="absolute top-2 right-2 z-10 h-6 w-6 p-0 hover:bg-gray-100"
+          className="absolute top-2 right-2 z-10 h-6 w-6 p-0 hover:bg-gray-100 no-print"
           onClick={onClose}
         >
           <X className="h-3 w-3" />
@@ -131,7 +131,7 @@ export function ResumePreview({ resumeId, templateId, detectedLanguage, original
       )}
       <div className="w-full">
         {/* Print-friendly container */}
-        <div className="bg-white shadow-sm min-h-full p-3 print:p-6 print:shadow-none print:min-h-0 text-sm">
+        <div className="resume-content bg-white shadow-sm min-h-full p-6 print:p-6 print:shadow-none print:min-h-0 text-sm">
           {sectionOrder.map(renderSection).filter(Boolean)}
         </div>
       </div>
