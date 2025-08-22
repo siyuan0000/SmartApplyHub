@@ -25,8 +25,7 @@ import {
   GlowingButton,
   StreamingText,
   LoadingSpinner,
-  ContentPreviewCard,
-  SectionTransition
+  ContentPreviewCard
 } from './EnhancementAnimations'
 import { EnhancedContentDisplay } from './EnhancedContentDisplay'
 
@@ -37,6 +36,8 @@ interface AIEnhancementLabProps {
   onApplyEnhancement: (sectionType: string, enhancedContent: string) => void
   onApplyField: (fieldPath: string, value: string) => void
   activeSection?: string
+  width?: number
+  onResetWidth?: () => void
 }
 
 interface SectionInfo {
@@ -105,7 +106,9 @@ export function AIEnhancementLab({
   resumeContent, 
   onApplyEnhancement,
   onApplyField,
-  activeSection
+  activeSection,
+  width = 500,
+  onResetWidth
 }: AIEnhancementLabProps) {
   const [selectedSection, setSelectedSection] = useState<string>(activeSection || 'summary')
   const [customPrompt, setCustomPrompt] = useState('')
@@ -554,12 +557,14 @@ Please provide your response in EXACTLY this format:
   }
 
   const selectedSectionInfo = SECTIONS.find(s => s.type === selectedSection)
-  const currentContent = getSectionContent(selectedSection)
 
   if (!isOpen) return null
 
   return (
-    <div className="fixed right-0 top-0 h-full w-[500px] bg-background border-l border-border shadow-xl z-40 overflow-hidden">
+    <div 
+      className="fixed right-0 top-0 h-full bg-background border-l border-border shadow-xl z-40 overflow-hidden"
+      style={{ width: `${width}px` }}
+    >
       <div className="h-full flex flex-col relative">
         <FloatingParticles />
         
@@ -584,14 +589,27 @@ Please provide your response in EXACTLY this format:
                 <p className="text-xs text-muted-foreground">Section Enhancement complete</p>
               </div>
             </motion.div>
-            <Button
-              variant="ghost" 
-              size="sm"
-              onClick={onClose}
-              className="h-8 w-8 p-0"
-            >
-              ✕
-            </Button>
+            <div className="flex items-center gap-1">
+              {onResetWidth && (
+                <Button
+                  variant="ghost" 
+                  size="sm"
+                  onClick={onResetWidth}
+                  className="h-8 w-8 p-0"
+                  title="Reset panel width"
+                >
+                  ⟲
+                </Button>
+              )}
+              <Button
+                variant="ghost" 
+                size="sm"
+                onClick={onClose}
+                className="h-8 w-8 p-0"
+              >
+                ✕
+              </Button>
+            </div>
           </div>
         </div>
 
@@ -626,75 +644,6 @@ Please provide your response in EXACTLY this format:
             </div>
           </motion.div>
 
-          {/* Raw Content Display */}
-          <SectionTransition sectionKey={selectedSection}>
-            <motion.div 
-              className="space-y-3"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.3 }}
-            >
-              <div className="flex items-center justify-between">
-                <h3 className="font-semibold flex items-center gap-2">
-                  <PulsingIcon
-                    icon={selectedSectionInfo?.icon || <Target className="h-4 w-4" />}
-                    isActive={selectedSection !== ''}
-                    color={selectedSectionInfo?.color.split('-')[1] || 'blue'}
-                  />
-                  Raw Content
-                </h3>
-                <motion.div
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                >
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => copyToClipboard(currentContent, 'Raw content')}
-                    className="gap-1 text-xs"
-                  >
-                    <Copy className="h-3 w-3" />
-                    Copy
-                  </Button>
-                </motion.div>
-              </div>
-              
-              <ContentPreviewCard isHighlighted={!!currentContent}>
-                <CardContent className="p-3 h-32 overflow-y-auto">
-                  {currentContent ? (
-                    <motion.pre 
-                      className="whitespace-pre-wrap text-xs text-muted-foreground leading-relaxed"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      transition={{ duration: 0.5 }}
-                    >
-                      {currentContent}
-                    </motion.pre>
-                  ) : (
-                    <div className="flex items-center justify-center h-full text-center">
-                      <div className="space-y-2">
-                        <motion.div
-                          animate={{ 
-                            rotate: [0, 360],
-                            scale: [1, 1.1, 1]
-                          }}
-                          transition={{ 
-                            rotate: { duration: 4, repeat: Infinity, ease: "linear" },
-                            scale: { duration: 2, repeat: Infinity }
-                          }}
-                        >
-                          <Sparkles className="h-6 w-6 text-muted-foreground mx-auto" />
-                        </motion.div>
-                        <p className="text-xs text-muted-foreground">
-                          No content yet
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                </CardContent>
-              </ContentPreviewCard>
-            </motion.div>
-          </SectionTransition>
 
           {/* Custom Instructions */}
           <motion.div 

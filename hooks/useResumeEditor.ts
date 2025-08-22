@@ -1,7 +1,6 @@
 import { create } from 'zustand'
 import { ResumeContent, ResumeExperience, ResumeEducation, ResumeProject } from '@/lib/resume/parser'
 import { ResumeService } from '@/lib/resume/service'
-import { useResumeHistory } from './useResumeHistory'
 
 interface ResumeEditorState {
   // Core state
@@ -24,8 +23,6 @@ interface ResumeEditorState {
   enableAutoSave: () => void
   disableAutoSave: () => void
   validateContent: (content: ResumeContent) => string[]
-  undo: () => void
-  redo: () => void
   forceSave: () => Promise<void>
   
   // Section-specific updates
@@ -43,7 +40,7 @@ interface ResumeEditorState {
   removeProject: (index: number) => void
   
   // AI Enhancement specific
-  applyAIEnhancement: (fieldPath: string, value: string, action: string) => Promise<void>
+  applyAIEnhancement: (fieldPath: string, value: string) => Promise<void>
 }
 
 // Helper functions for bullet point handling
@@ -82,10 +79,6 @@ export const useResumeEditor = create<ResumeEditorState>((set, get) => ({
       if (resume) {
         const content = ResumeService.parseResumeContent(resume)
         
-        // Initialize history with loaded content
-        const { addToHistory, clearHistory } = useResumeHistory.getState()
-        clearHistory()
-        addToHistory(content, 'load', 'Resume loaded from database')
         
         set({ 
           content,
@@ -105,16 +98,8 @@ export const useResumeEditor = create<ResumeEditorState>((set, get) => ({
   },
   
   // Update entire content
-  updateContent: (content: ResumeContent, skipHistory = false) => {
-    const { isUndoRedoAction } = get()
-    
-    // Add to history unless this is an undo/redo action or explicitly skipped
-    if (!skipHistory && !isUndoRedoAction) {
-      const { addToHistory } = useResumeHistory.getState()
-      addToHistory(content, 'update', 'Content updated')
-    }
-    
-    set({ content, isUndoRedoAction: false })
+  updateContent: (content: ResumeContent) => {
+    set({ content })
   },
   
   // Save changes to database with retry logic
@@ -195,24 +180,6 @@ export const useResumeEditor = create<ResumeEditorState>((set, get) => ({
     set({ error: null })
   },
   
-  // Undo/Redo functionality
-  undo: () => {
-    const { undo } = useResumeHistory.getState()
-    const previousContent = undo()
-    
-    if (previousContent) {
-      set({ content: previousContent, isUndoRedoAction: true })
-    }
-  },
-  
-  redo: () => {
-    const { redo } = useResumeHistory.getState()
-    const nextContent = redo()
-    
-    if (nextContent) {
-      set({ content: nextContent, isUndoRedoAction: true })
-    }
-  },
   
   // Force save (for manual save button)
   forceSave: async () => {
@@ -302,7 +269,7 @@ export const useResumeEditor = create<ResumeEditorState>((set, get) => ({
   },
   
   // AI Enhancement specific
-  applyAIEnhancement: async (fieldPath: string, value: string, action: string) => {
+  applyAIEnhancement: async (fieldPath: string, value: string) => {
     const { content, updateContent, saveResume } = get()
     if (!content) return
     
@@ -346,13 +313,11 @@ export const useResumeEditor = create<ResumeEditorState>((set, get) => ({
         }
       }
       
-      // Add to history with specific action description
-      const { addToHistory } = useResumeHistory.getState()
-      addToHistory(updatedContent, 'ai_enhancement', `Applied AI enhancement: ${action}`)
-      
       // Update content and save immediately
-      updateContent(updatedContent, true) // Skip history since we already added it
+      updateContent(updatedContent)
       await saveResume()
+      
+      console.log('✅ AI Enhancement applied and saved:', fieldPath, value)
       
     } catch (error) {
       console.error(`Failed to apply AI enhancement to ${fieldPath}:`, error)
@@ -407,9 +372,7 @@ export const useResumeEditor = create<ResumeEditorState>((set, get) => ({
       experience: [...content.experience, newExperience]
     }
     
-    const { addToHistory } = useResumeHistory.getState()
-    addToHistory(updatedContent, 'add_experience', 'Added new experience entry')
-    updateContent(updatedContent, true)
+    updateContent(updatedContent)
   },
   
   removeExperience: (index: number) => {
@@ -421,9 +384,7 @@ export const useResumeEditor = create<ResumeEditorState>((set, get) => ({
       experience: content.experience.filter((_, i) => i !== index)
     }
     
-    const { addToHistory } = useResumeHistory.getState()
-    addToHistory(updatedContent, 'remove_experience', `Removed experience entry ${index + 1}`)
-    updateContent(updatedContent, true)
+    updateContent(updatedContent)
   },
   
   updateEducation: (index: number, field: string, value: string) => {

@@ -17,7 +17,7 @@ import { toast } from 'sonner'
 export default function ResumePage() {
   const params = useParams()
   const resumeId = params.id as string
-  const { content, saving, saveResume } = useResumeEditor()
+  const { content, saving, forceSave } = useResumeEditor()
   const { isDirty } = useResumeEditorComputed()
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>()
   const [previewCollapsed, setPreviewCollapsed] = useState(false)
@@ -54,7 +54,7 @@ export default function ResumePage() {
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault()
         if (isDirty) {
-          saveResume()
+          forceSave()
         }
       }
     }
@@ -66,7 +66,7 @@ export default function ResumePage() {
       window.removeEventListener('beforeunload', handleBeforeUnload)
       document.removeEventListener('keydown', handleKeydown)
     }
-  }, [isDirty, saveResume])
+  }, [isDirty, forceSave])
 
   const handleBackClick = (e: React.MouseEvent) => {
     if (isDirty) {
@@ -159,7 +159,7 @@ export default function ResumePage() {
           </div>
           <div className="flex gap-2">
             <Button
-              onClick={saveResume}
+              onClick={forceSave}
               disabled={saving}
               className="gap-2"
             >
@@ -210,19 +210,47 @@ export default function ResumePage() {
 
             {/* Show Preview Button - positioned on right side when collapsed */}
             {previewCollapsed && (
-              <div className="fixed right-4 top-1/2 transform -translate-y-1/2 z-10">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setPreviewCollapsed(false)}
-                  className="gap-2 px-3 py-8 border-dashed hover:bg-muted/50 shadow-lg"
-                  title="Show preview"
-                >
-                  <div className="flex flex-col items-center gap-1">
-                    <Eye className="h-5 w-5" />
-                    <span className="text-xs font-medium writing-mode-vertical">Show Preview</span>
-                  </div>
-                </Button>
+              <div className="fixed right-0 top-2/3 transform -translate-y-1/2 z-10">
+                <div className="group relative">
+                  {/* Main Button */}
+                  <button
+                    onClick={() => setPreviewCollapsed(false)}
+                    className="relative bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 text-white p-0.5 rounded-l-xl shadow-xl transition-all duration-300 hover:shadow-2xl hover:scale-105 active:scale-95"
+                    title="Show Preview"
+                  >
+                    {/* Background Glow Effect */}
+                    <div className="absolute inset-0 bg-gradient-to-br from-blue-400 via-purple-400 to-pink-400 rounded-l-xl blur-sm opacity-0 group-hover:opacity-100 transition-opacity duration-300 -z-10"></div>
+                    
+                    {/* Button Content */}
+                    <div className="relative bg-gray-900/90 backdrop-blur-sm rounded-l-lg px-2 py-4 flex flex-col items-center gap-1 min-w-[32px] min-h-[32px]">
+                      {/* Eye Icon with Animation */}
+                      <div className="relative">
+                        <Eye className="h-4 w-4 text-white group-hover:text-blue-200 transition-colors duration-300" />
+                        <div className="absolute inset-0 bg-white/20 rounded-full scale-0 group-hover:scale-110 transition-transform duration-300"></div>
+                      </div>
+
+                      {/* Pulse Animation Dot */}
+                      <div className="absolute -top-1 -right-1">
+                        <div className="relative">
+                          <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                          <div className="absolute inset-0 w-2 h-2 bg-green-400 rounded-full animate-ping opacity-75"></div>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Arrow Indicator */}
+                    <div className="absolute left-0 top-1/2 transform -translate-y-1/2 -translate-x-1">
+                      <div className="w-0 h-0 border-t-3 border-b-3 border-r-4 border-transparent border-r-white/20 group-hover:border-r-blue-200 transition-colors duration-300"></div>
+                    </div>
+                  </button>
+                  
+                  {/* Floating Particles Effect */}
+                  {/* <div className="absolute inset-0 pointer-events-none">
+                    <div className="absolute top-2 right-1 w-1 h-1 bg-blue-300 rounded-full opacity-0 group-hover:opacity-100 group-hover:animate-bounce transition-opacity duration-300" style={{ animationDelay: '0.1s' }}></div>
+                    <div className="absolute top-8 right-2 w-1 h-1 bg-purple-300 rounded-full opacity-0 group-hover:opacity-100 group-hover:animate-bounce transition-opacity duration-300" style={{ animationDelay: '0.3s' }}></div>
+                    <div className="absolute bottom-8 right-1 w-1 h-1 bg-pink-300 rounded-full opacity-0 group-hover:opacity-100 group-hover:animate-bounce transition-opacity duration-300" style={{ animationDelay: '0.6s' }}></div>
+                  </div> */}
+                </div>
               </div>
             )}
 
@@ -261,10 +289,6 @@ export default function ResumePage() {
 
         {/* Mobile Stack View */}
         <style jsx>{`
-          .writing-mode-vertical {
-            writing-mode: vertical-rl;
-            text-orientation: mixed;
-          }
           @media (max-width: 1023px) {
             .grid.lg\\:grid-cols-2 {
               grid-template-columns: 1fr !important;

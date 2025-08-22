@@ -12,6 +12,8 @@ import { ResumeContent } from '@/lib/resume/parser'
 import { useResumeEditor, formatAchievements, parseAchievements } from '@/hooks/useResumeEditor'
 import { useResumeHistory } from '@/hooks/useResumeHistory'
 import { useAI } from '@/hooks/useAI'
+import { useResizablePanels } from '@/hooks/useResizablePanels'
+import { ResizableHandle } from '@/components/ui/resizable-handle'
 import { useAboutGeneration } from '@/hooks/useAboutGeneration'
 import { AIEnhancementLab } from './AIEnhancementLab'
 import { ResumeEditorSidebar } from './ResumeEditorSidebar'
@@ -47,12 +49,31 @@ export function ResumeEditor({ resumeId, onSave, onStreamPaneToggle }: ResumeEdi
     updateProject,
     removeProject,
     applyAIEnhancement,
-    undo,
-    redo,
+    updateContent,
     forceSave
   } = useResumeEditor()
   
-  const { canUndo, canRedo, getHistoryInfo } = useResumeHistory()
+  const { 
+    canUndo, 
+    canRedo, 
+    getHistoryInfo, 
+    addToHistory, 
+    undo: historyUndo, 
+    redo: historyRedo 
+  } = useResumeHistory()
+
+  // Resizable panels for AI Enhancement Lab
+  const {
+    width: aiPanelWidth,
+    isResizing,
+    handleMouseDown: handleResizeMouseDown,
+    resetWidth: resetAIPanelWidth
+  } = useResizablePanels({
+    minWidth: 400,
+    maxWidth: 800,
+    defaultWidth: 500,
+    storageKey: 'ai-panel-width'
+  })
   
   const [activeSection, setActiveSection] = useState<string>('contact')
   const { error: aiError, clearError: clearAIError } = useAI()
@@ -146,7 +167,9 @@ URL: ${project.url || ''}`
     if (!content) return
     
     try {
-      await applyAIEnhancement(fieldPath, value, `Enhanced ${fieldPath.split('.').pop()}`)
+      // Track history before applying AI enhancement
+      addToHistory(content, 'ai_enhancement', `Enhanced ${fieldPath.split('.').pop()}`)
+      await applyAIEnhancement(fieldPath, value)
     } catch (error) {
       console.error(`Failed to apply AI enhancement to ${fieldPath}:`, error)
     }
@@ -156,6 +179,8 @@ URL: ${project.url || ''}`
     if (!content) return
     
     try {
+      // Track history before applying enhancement
+      addToHistory(content, 'ai_enhancement', `Enhanced ${sectionType} section`)
       switch (sectionType) {
         case 'about':
         case 'summary':
@@ -320,6 +345,17 @@ URL: ${project.url || ''}`
     }
   }, [resumeId, loadResume])
 
+  // Track if we've initialized history for this resume
+  const historyInitialized = useRef<string | null>(null)
+  
+  // Initialize history when content first loads
+  useEffect(() => {
+    if (content && resumeId && historyInitialized.current !== resumeId) {
+      addToHistory(content, 'loaded', 'Resume loaded')
+      historyInitialized.current = resumeId
+    }
+  }, [content, resumeId, addToHistory])
+
   const handleSave = async () => {
     await forceSave()
     if (content) {
@@ -328,11 +364,17 @@ URL: ${project.url || ''}`
   }
   
   const handleUndo = () => {
-    undo()
+    const previousContent = historyUndo()
+    if (previousContent) {
+      updateContent(previousContent)
+    }
   }
   
   const handleRedo = () => {
-    redo()
+    const nextContent = historyRedo()
+    if (nextContent) {
+      updateContent(nextContent)
+    }
   }
 
   // Auto-collapse functionality for main content area
@@ -375,6 +417,9 @@ URL: ${project.url || ''}`
   const handleGenerateAbout = async () => {
     if (!content) return
     try {
+      // Track history before generating new content
+      addToHistory(content, 'ai_generation', 'Generated about section')
+      
       // Clear previous text and error state
       clearAboutError()
       clearResults()
@@ -412,6 +457,9 @@ URL: ${project.url || ''}`
   const handleEnhanceAbout = async () => {
     if (!content || !content.summary) return
     try {
+      // Track history before enhancing content
+      addToHistory(content, 'ai_enhancement', 'Enhanced about section')
+      
       clearAboutError()
       clearResults()
       const result = await enhanceAbout(content.summary, content)
@@ -425,6 +473,11 @@ URL: ${project.url || ''}`
   }
 
   const handleSelectVariation = async (variation: { aboutText: string }) => {
+    if (content) {
+      // Track history before selecting variation
+      addToHistory(content, 'ai_selection', 'Selected about variation')
+    }
+    
     updateSummary(variation.aboutText)
     setShowVariations(false)
     clearResults()
@@ -448,44 +501,19 @@ URL: ${project.url || ''}`
         onSectionChange={setActiveSection}
       />
       
-      <div className="flex flex-1 min-w-0">
+      <div className="flex flex-1 min-w-0 relative">
         <div 
           className={cn(
             "flex-1 transition-all duration-300 ease-in-out",
-            "overflow-y-auto min-w-0",
-            showEnhancementLab && "pr-[500px]"
+            "overflow-y-auto min-w-0"
           )}
+          style={{
+            marginRight: showEnhancementLab ? `${aiPanelWidth}px` : '0px'
+          }}
           onClick={handleMainContentClick}
         >
           <div className="p-4 space-y-4">
           
-          {/* Global AI Tools */}
-          {!showEnhancementLab && (
-            <div className="bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-950/30 dark:to-pink-950/30 rounded-xl p-4 border border-purple-200 dark:border-purple-800">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-gradient-to-r from-purple-500 to-pink-500 rounded-lg">
-                    <Wand2 className="h-5 w-5 text-white" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-lg bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
-                      AI Enhancement Tools
-                    </h3>
-                    <p className="text-sm text-muted-foreground">
-                      Professional-grade AI tools powered by HR expertise
-                    </p>
-                  </div>
-                </div>
-                <Button
-                  onClick={() => setShowEnhancementLab(true)}
-                  className="gap-2 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-medium px-6"
-                >
-                  <Sparkles className="h-4 w-4" />
-                  Open Enhancement Lab
-                </Button>
-              </div>
-            </div>
-          )}
 
           {/* Editor Controls */}
           <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30 rounded-xl p-4 border border-blue-200 dark:border-blue-800">
@@ -1208,15 +1236,72 @@ URL: ${project.url || ''}`
         </div>
       </div>
 
-      {/* AI Enhancement Lab */}
-      <AIEnhancementLab
-        isOpen={showEnhancementLab}
-        onClose={handleCloseEnhancementLab}
-        resumeContent={content}
-        onApplyEnhancement={applyEnhancedContent}
-        onApplyField={applyEnhancedField}
-        activeSection={activeSection}
-      />
+      {/* Open Enhancement Lab Button - positioned on right side when collapsed */}
+      {!showEnhancementLab && (
+        <div className="fixed right-0 top-1/3 transform -translate-y-1/2 z-10">
+          <div className="group relative">
+            {/* Main Button */}
+            <button
+              onClick={() => setShowEnhancementLab(true)}
+              className="relative bg-gradient-to-br from-purple-500 via-pink-500 to-orange-500 text-white p-0.5 rounded-l-xl shadow-xl transition-all duration-300 hover:shadow-2xl hover:scale-105 active:scale-95"
+              title="Open AI Enhancement Lab"
+            >
+              {/* Background Glow Effect */}
+              <div className="absolute inset-0 bg-gradient-to-br from-purple-400 via-pink-400 to-orange-400 rounded-l-xl blur-sm opacity-0 group-hover:opacity-100 transition-opacity duration-300 -z-10"></div>
+              
+              {/* Button Content */}
+              <div className="relative bg-gray-900/90 backdrop-blur-sm rounded-l-lg px-2 py-4 flex flex-col items-center gap-1 min-w-[32px] min-h-[32px]">
+                {/* Sparkles Icon with Animation */}
+                <div className="relative">
+                  <Sparkles className="h-4 w-4 text-white group-hover:text-purple-200 transition-colors duration-300" />
+                  <div className="absolute inset-0 bg-white/20 rounded-full scale-0 group-hover:scale-110 transition-transform duration-300"></div>
+                </div>
+                
+                {/* Magic Wand Animation Dot */}
+                <div className="absolute -top-1 -right-1">
+                  <div className="relative">
+                    <div className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></div>
+                    <div className="absolute inset-0 w-2 h-2 bg-yellow-400 rounded-full animate-ping opacity-75"></div>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Arrow Indicator */}
+              <div className="absolute left-0 top-1/2 transform -translate-y-1/2 -translate-x-1">
+                <div className="w-0 h-0 border-t-3 border-b-3 border-r-4 border-transparent border-r-white/20 group-hover:border-r-purple-200 transition-colors duration-300"></div>
+              </div>
+            </button>
+            
+            
+          </div>
+        </div>
+      )}
+
+      {/* AI Enhancement Lab with Resizable Handle */}
+      {showEnhancementLab && (
+        <>
+          <div 
+            className="absolute top-0 z-50"
+            style={{ right: `${aiPanelWidth}px` }}
+          >
+            <ResizableHandle
+              onMouseDown={handleResizeMouseDown}
+              isResizing={isResizing}
+              position="left"
+            />
+          </div>
+          <AIEnhancementLab
+            isOpen={showEnhancementLab}
+            onClose={handleCloseEnhancementLab}
+            resumeContent={content}
+            onApplyEnhancement={applyEnhancedContent}
+            onApplyField={applyEnhancedField}
+            activeSection={activeSection}
+            width={aiPanelWidth}
+            onResetWidth={resetAIPanelWidth}
+          />
+        </>
+      )}
     </div>
   )
 }
