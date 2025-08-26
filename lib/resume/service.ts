@@ -3,10 +3,10 @@ import { Database } from '@/types/database.types'
 import { ResumeContent } from './parser'
 import { getCurrentUserProfile } from '@/lib/supabase/user'
 import { StorageService } from '@/lib/supabase/storage'
+import { saveLogger } from '@/lib/debug/save-logger'
 
 type ResumeRow = Database['public']['Tables']['resumes']['Row']
 type ResumeInsert = Database['public']['Tables']['resumes']['Insert']
-type ResumeUpdate = Database['public']['Tables']['resumes']['Update']
 
 export interface CreateResumeData {
   title: string
@@ -69,27 +69,124 @@ export class ResumeService {
     return resume
   }
 
-  static async updateResume(id: string, data: UpdateResumeData): Promise<ResumeRow> {
-    const supabase = createClient()
+  static async updateResume(id: string, data: UpdateResumeData, sessionId?: string): Promise<ResumeRow> {
+    // Create or use existing session ID
+    const currentSessionId = sessionId || saveLogger.generateSessionId()
+    if (!sessionId) {
+      saveLogger.startSession(currentSessionId, id, undefined)
+    }
     
-    const updateData: ResumeUpdate = {
-      ...data,
-      content: data.content as unknown as Database['public']['Tables']['resumes']['Update']['content'],
-      updated_at: new Date().toISOString()
+    const serviceStartTime = Date.now()
+    saveLogger.logStep(currentSessionId, 'service_update_resume', 'start', { 
+      id, 
+      hasContent: !!data.content,
+      contentSample: data.content ? {
+        summary: data.content.summary?.substring(0, 100) + '...',
+        skillsCount: data.content.skills?.length || 0,
+        contactName: data.content.contact?.name,
+        experienceCount: data.content.experience?.length || 0
+      } : null
+    })
+    
+    try {
+      saveLogger.logStep(currentSessionId, 'service_preparing_request', 'start')
+      
+      // Use the API route instead of direct Supabase client calls
+      const requestData = {
+        url: `/api/resumes/${id}`,
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include' as RequestCredentials,
+        body: JSON.stringify(data)
+      }
+      
+      saveLogger.logStep(currentSessionId, 'service_making_fetch', 'start', {
+        url: requestData.url,
+        method: requestData.method,
+        bodySize: requestData.body.length
+      })
+      
+      const fetchStartTime = Date.now()
+      const response = await fetch(requestData.url, {
+        method: requestData.method,
+        headers: requestData.headers,
+        credentials: requestData.credentials,
+        body: requestData.body
+      })
+      
+      saveLogger.logStep(currentSessionId, 'service_fetch_complete', 'success', {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok
+      }, undefined, fetchStartTime)
+
+      if (!response.ok) {
+        let errorMessage = `HTTP ${response.status}`
+        try {
+          const errorData = await response.json()
+          errorMessage = errorData.error || errorMessage
+          saveLogger.logStep(currentSessionId, 'service_error_parsing', 'success', { errorData })
+        } catch {
+          errorMessage = `${response.status} ${response.statusText}`
+          saveLogger.logStep(currentSessionId, 'service_error_parsing', 'warning', { 
+            reason: 'failed_to_parse_error_response' 
+          })
+        }
+        
+        saveLogger.logStep(currentSessionId, 'service_http_error', 'error', {
+          status: response.status,
+          statusText: response.statusText,
+          errorMessage
+        }, errorMessage)
+        
+        const error = new Error(`Failed to update resume: ${errorMessage}`)
+        if (!sessionId) saveLogger.endSession(currentSessionId, 'error')
+        throw error
+      }
+
+      saveLogger.logStep(currentSessionId, 'service_parsing_response', 'start')
+      const parseStartTime = Date.now()
+      const result = await response.json()
+      const resume = result.resume
+      saveLogger.logStep(currentSessionId, 'service_response_parsed', 'success', {
+        hasResume: !!resume,
+        resultKeys: Object.keys(result)
+      }, undefined, parseStartTime)
+
+      if (!resume) {
+        const error = 'No resume data returned from server'
+        saveLogger.logStep(currentSessionId, 'service_no_resume_data', 'error', null, error)
+        if (!sessionId) saveLogger.endSession(currentSessionId, 'error')
+        throw new Error(error)
+      }
+
+      saveLogger.logStep(currentSessionId, 'service_update_complete', 'success', {
+        id: resume.id,
+        version: resume.version,
+        updatedAt: resume.updated_at,
+        contentSize: JSON.stringify(resume.content).length
+      }, undefined, serviceStartTime)
+
+      if (!sessionId) saveLogger.endSession(currentSessionId, 'success')
+      return resume
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      saveLogger.logStep(currentSessionId, 'service_update_error', 'error', {
+        errorMessage,
+        errorType: error?.constructor?.name,
+        stack: error instanceof Error ? error.stack : undefined
+      }, errorMessage)
+      
+      if (!sessionId) saveLogger.endSession(currentSessionId, 'error')
+      
+      if (error instanceof Error) {
+        // Re-throw with more context
+        throw new Error(`Resume update failed: ${error.message}`)
+      }
+      
+      throw new Error('Resume update failed: Unknown error')
     }
-
-    const { data: resume, error } = await supabase
-      .from('resumes')
-      .update(updateData)
-      .eq('id', id)
-      .select()
-      .single()
-
-    if (error) {
-      throw new Error(`Failed to update resume: ${error.message}`)
-    }
-
-    return resume
   }
 
   static async getUserResumes(userId: string): Promise<ResumeRow[]> {

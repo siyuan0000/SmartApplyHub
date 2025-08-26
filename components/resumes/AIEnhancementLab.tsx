@@ -33,7 +33,7 @@ interface AIEnhancementLabProps {
   isOpen: boolean
   onClose: () => void
   resumeContent: ResumeContent | null
-  onApplyEnhancement: (sectionType: string, enhancedContent: string) => void
+  onApplyEnhancement: (sectionType: string, enhancedContent: string) => Promise<void>
   onApplyField: (fieldPath: string, value: string) => void
   activeSection?: string
   width?: number
@@ -530,13 +530,23 @@ Please provide your response in EXACTLY this format:
     }
   }
 
-  const handleApplyEnhancement = () => {
+  const handleApplyEnhancement = async () => {
     if (enhancedContent) {
-      onApplyEnhancement(selectedSection, enhancedContent)
-      toast({
-        title: "Enhancement Applied",
-        description: `Successfully applied AI enhancement to ${SECTIONS.find(s => s.type === selectedSection)?.label}`,
-      })
+      try {
+        console.log('🎯 Applying enhancement from AIEnhancementLab:', { selectedSection, contentLength: enhancedContent.length })
+        await onApplyEnhancement(selectedSection, enhancedContent)
+        toast({
+          title: "Enhancement Applied",
+          description: `Successfully applied AI enhancement to ${SECTIONS.find(s => s.type === selectedSection)?.label}`,
+        })
+      } catch (error) {
+        console.error('❌ Failed to apply enhancement:', error)
+        toast({
+          title: "Enhancement Failed",
+          description: `Failed to apply AI enhancement. Please try again.`,
+          variant: "destructive"
+        })
+      }
     }
   }
 

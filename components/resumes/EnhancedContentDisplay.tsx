@@ -65,13 +65,28 @@ export function EnhancedContentDisplay({
   const { toast } = useToast()
   const [appliedFields, setAppliedFields] = useState<Set<string>>(new Set())
 
-  const handleApplyField = (fieldPath: string, value: string) => {
-    onApplyField(fieldPath, value)
-    setAppliedFields(prev => new Set([...prev, fieldPath]))
-    toast({
-      title: "Field Applied",
-      description: `Updated ${fieldPath.split('.').pop()} successfully`,
-    })
+  const handleApplyField = async (fieldPath: string, value: string) => {
+    console.log('🔄 Starting field application:', { fieldPath, valueLength: value.length, valuePreview: value.substring(0, 100) + '...' })
+    
+    try {
+      console.log('🔄 Calling onApplyField...')
+      await onApplyField(fieldPath, value)
+      
+      setAppliedFields(prev => new Set([...prev, fieldPath]))
+      console.log('✅ Field application completed successfully')
+      
+      toast({
+        title: "AI Enhancement Applied",
+        description: `Enhanced ${fieldPath.split('.').pop()} and saved to database`,
+      })
+    } catch (error) {
+      console.error(`❌ Failed to apply field ${fieldPath}:`, error)
+      toast({
+        variant: "destructive",
+        title: "Save Failed",
+        description: `Failed to save enhanced ${fieldPath.split('.').pop()}. Please try again.`,
+      })
+    }
   }
 
   const parseEnhancedContent = () => {
@@ -215,7 +230,7 @@ export function EnhancedContentDisplay({
     const projects: ParsedProject[] = []
     const currentProject: Partial<ParsedProject> = {}
     const currentDetails: string[] = []
-    const currentTechnologies: string[] = []
+    let currentTechnologies: string[] = []
 
     lines.forEach(line => {
       const trimmedLine = line.trim()
@@ -436,6 +451,198 @@ export function EnhancedContentDisplay({
     </div>
   )
 
+  const renderEducationFields = (educations: ParsedEducation[]) => (
+    <div className="space-y-6">
+      {educations.map((edu, index) => (
+        <Card key={index} className="border-dashed">
+          <CardContent className="p-4 space-y-4">
+            <h4 className="font-medium text-sm">Education {index + 1}</h4>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label className="text-xs">Degree</Label>
+                <div className="flex gap-2">
+                  <Input value={edu.degree || ''} readOnly className="text-sm bg-muted/50" />
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleApplyField(`education.${index}.degree`, edu.degree)}
+                  >
+                    <Copy className="h-3 w-3" />
+                  </Button>
+                </div>
+              </div>
+              
+              <div>
+                <Label className="text-xs">School</Label>
+                <div className="flex gap-2">
+                  <Input value={edu.school || ''} readOnly className="text-sm bg-muted/50" />
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleApplyField(`education.${index}.school`, edu.school)}
+                  >
+                    <Copy className="h-3 w-3" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label className="text-xs">Graduation Date</Label>
+                <div className="flex gap-2">
+                  <Input value={edu.graduationDate || ''} readOnly className="text-sm bg-muted/50" />
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleApplyField(`education.${index}.graduationDate`, edu.graduationDate)}
+                  >
+                    <Copy className="h-3 w-3" />
+                  </Button>
+                </div>
+              </div>
+              
+              <div>
+                <Label className="text-xs">GPA</Label>
+                <div className="flex gap-2">
+                  <Input value={edu.gpa || ''} readOnly className="text-sm bg-muted/50" />
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleApplyField(`education.${index}.gpa`, edu.gpa)}
+                  >
+                    <Copy className="h-3 w-3" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            {edu.honors && edu.honors.length > 0 && (
+              <div>
+                <Label className="text-xs">Honors</Label>
+                <div className="flex gap-2">
+                  <Textarea
+                    value={edu.honors.map(h => `• ${h}`).join('\n')}
+                    readOnly
+                    className="text-sm bg-muted/50 min-h-20"
+                  />
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleApplyField(`education.${index}.honors`, edu.honors.join('\n'))}
+                  >
+                    <Copy className="h-3 w-3" />
+                  </Button>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  )
+
+  const renderProjectsFields = (projects: ParsedProject[]) => (
+    <div className="space-y-6">
+      {projects.map((project, index) => (
+        <Card key={index} className="border-dashed">
+          <CardContent className="p-4 space-y-4">
+            <h4 className="font-medium text-sm">Project {index + 1}</h4>
+            
+            <div>
+              <Label className="text-xs">Project Name</Label>
+              <div className="flex gap-2">
+                <Input value={project.name || ''} readOnly className="text-sm bg-muted/50" />
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleApplyField(`projects.${index}.name`, project.name)}
+                >
+                  <Copy className="h-3 w-3" />
+                </Button>
+              </div>
+            </div>
+
+            <div>
+              <Label className="text-xs">Description</Label>
+              <div className="flex gap-2">
+                <Textarea
+                  value={project.description || ''}
+                  readOnly
+                  className="text-sm bg-muted/50 min-h-16"
+                />
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleApplyField(`projects.${index}.description`, project.description)}
+                >
+                  <Copy className="h-3 w-3" />
+                </Button>
+              </div>
+            </div>
+
+            {project.url && (
+              <div>
+                <Label className="text-xs">URL</Label>
+                <div className="flex gap-2">
+                  <Input value={project.url} readOnly className="text-sm bg-muted/50" />
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleApplyField(`projects.${index}.url`, project.url)}
+                  >
+                    <Copy className="h-3 w-3" />
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {project.technologies && project.technologies.length > 0 && (
+              <div>
+                <Label className="text-xs">Technologies</Label>
+                <div className="flex gap-2">
+                  <Textarea
+                    value={project.technologies.join(', ')}
+                    readOnly
+                    className="text-sm bg-muted/50 min-h-16"
+                  />
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleApplyField(`projects.${index}.technologies`, project.technologies.join(', '))}
+                  >
+                    <Copy className="h-3 w-3" />
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {project.details && project.details.length > 0 && (
+              <div>
+                <Label className="text-xs">Details</Label>
+                <div className="flex gap-2">
+                  <Textarea
+                    value={project.details.map(d => `• ${d}`).join('\n')}
+                    readOnly
+                    className="text-sm bg-muted/50 min-h-20"
+                  />
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleApplyField(`projects.${index}.details`, project.details.join('\n'))}
+                  >
+                    <Copy className="h-3 w-3" />
+                  </Button>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  )
+
   const parsedContent = parseEnhancedContent()
 
   if (!parsedContent) {
@@ -455,8 +662,9 @@ export function EnhancedContentDisplay({
       {sectionType === 'contact' && renderContactFields(parsedContent as ParsedContact)}
       {sectionType === 'summary' && renderSummaryField(parsedContent as string)}
       {sectionType === 'experience' && renderExperienceFields(parsedContent as ParsedExperience[])}
+      {sectionType === 'education' && renderEducationFields(parsedContent as ParsedEducation[])}
       {sectionType === 'skills' && renderSkillsFields(parsedContent as string[])}
-      {/* Add other section types as needed */}
+      {sectionType === 'projects' && renderProjectsFields(parsedContent as ParsedProject[])}
     </motion.div>
   )
 }

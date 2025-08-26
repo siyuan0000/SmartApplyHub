@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { ResumeContent } from '@/lib/resume/parser'
-import { useResumeEditor, formatAchievements, parseAchievements } from '@/hooks/useResumeEditor'
+import { useResumeEditor, useResumeEditorComputed, formatAchievements, parseAchievements } from '@/hooks/useResumeEditor'
 import { useResumeHistory } from '@/hooks/useResumeHistory'
 import { useAI } from '@/hooks/useAI'
 import { useResizablePanels } from '@/hooks/useResizablePanels'
@@ -20,6 +20,7 @@ import { ResumeEditorSidebar } from './ResumeEditorSidebar'
 import { useUIStore } from '@/store/ui'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { cn } from '@/lib/utils'
+import { saveLogger } from '@/lib/debug/save-logger'
 import { Plus, Trash2, Sparkles, AlertCircle, RefreshCw, Wand2, Copy, Undo2, Redo2, Save, History } from 'lucide-react'
 
 interface ResumeEditorProps {
@@ -52,6 +53,8 @@ export function ResumeEditor({ resumeId, onSave, onStreamPaneToggle }: ResumeEdi
     updateContent,
     forceSave
   } = useResumeEditor()
+
+  const { isDirty } = useResumeEditorComputed()
   
   const { 
     canUndo, 
@@ -172,19 +175,38 @@ URL: ${project.url || ''}`
       await applyAIEnhancement(fieldPath, value)
     } catch (error) {
       console.error(`Failed to apply AI enhancement to ${fieldPath}:`, error)
+      throw error // Re-throw to allow toast notification to catch it
     }
   }
   
   const applyEnhancedContent = async (sectionType: string, enhancedContent: string) => {
-    if (!content) return
+    if (!content) {
+      console.error('❌ applyEnhancedContent: No content available')
+      return
+    }
+    
+    console.log('🎯 Applying enhanced content:', { 
+      sectionType, 
+      contentLength: enhancedContent.length,
+      contentPreview: enhancedContent.substring(0, 200) + '...',
+      currentSummary: content.summary?.substring(0, 50) + '...',
+      currentSkillsCount: content.skills?.length || 0
+    })
     
     try {
       // Track history before applying enhancement
       addToHistory(content, 'ai_enhancement', `Enhanced ${sectionType} section`)
+      
+      // Create deep copy to prevent mutations
+      const updatedContent = structuredClone(content)
+      let updateApplied = false
+      
       switch (sectionType) {
         case 'about':
         case 'summary':
-          updateSummary(enhancedContent)
+          console.log('🔄 Updating summary section...')
+          updatedContent.summary = enhancedContent
+          updateApplied = true
           break
         
         case 'skills':
@@ -193,12 +215,15 @@ URL: ${project.url || ''}`
             .split(/[,\n]/)
             .map(skill => skill.trim())
             .filter(skill => skill.length > 0)
-          updateSkills(skillsArray.join(', '))
+          console.log('🔄 Updating skills section:', { skillsArray })
+          updatedContent.skills = skillsArray
+          updateApplied = true
           break
         
         case 'contact':
           // Parse contact information from enhanced content
           const lines = enhancedContent.split('\n')
+          console.log('🔄 Updating contact section:', { lines })
           lines.forEach(line => {
             const [field, value] = line.split(':').map(s => s.trim())
             if (field && value) {
@@ -212,7 +237,8 @@ URL: ${project.url || ''}`
               }
               const contactField = fieldMap[field]
               if (contactField) {
-                updateContact(contactField as keyof typeof content.contact, value)
+                updatedContent.contact = { ...updatedContent.contact, [contactField]: value }
+                updateApplied = true
               }
             }
           })
@@ -220,9 +246,10 @@ URL: ${project.url || ''}`
         
         case 'experience':
           // Try to parse and apply enhanced content to the first experience entry
-          if (content.experience.length > 0) {
+          if (updatedContent.experience.length > 0) {
+            console.log('🔄 Updating experience section...')
             const enhancedLines = enhancedContent.split('\n').filter(line => line.trim())
-            const currentExp = { ...content.experience[0] }
+            const currentExp = { ...updatedContent.experience[0] }
             
             enhancedLines.forEach(line => {
               if (line.toLowerCase().includes('title:') || line.toLowerCase().includes('position:')) {
@@ -240,18 +267,17 @@ URL: ${project.url || ''}`
               }
             })
             
-            updateExperience(0, 'title', currentExp.title)
-            updateExperience(0, 'company', currentExp.company)
-            updateExperience(0, 'description', currentExp.description || '')
-            updateExperience(0, 'achievements', currentExp.achievements || [])
+            updatedContent.experience[0] = currentExp
+            updateApplied = true
           }
           break
         
         case 'education':
           // Try to parse and apply enhanced content to the first education entry
-          if (content.education.length > 0) {
+          if (updatedContent.education.length > 0) {
+            console.log('🔄 Updating education section...')
             const enhancedLines = enhancedContent.split('\n').filter(line => line.trim())
-            const currentEdu = { ...content.education[0] }
+            const currentEdu = { ...updatedContent.education[0] }
             
             enhancedLines.forEach(line => {
               if (line.toLowerCase().includes('degree:')) {
@@ -265,18 +291,17 @@ URL: ${project.url || ''}`
               }
             })
             
-            updateEducation(0, 'degree', currentEdu.degree)
-            updateEducation(0, 'school', currentEdu.school)
-            updateEducation(0, 'graduationDate', currentEdu.graduationDate || '')
-            updateEducation(0, 'gpa', currentEdu.gpa || '')
+            updatedContent.education[0] = currentEdu
+            updateApplied = true
           }
           break
         
         case 'projects':
           // Try to parse and apply enhanced content to the first project entry
-          if (content.projects && content.projects.length > 0) {
+          if (updatedContent.projects && updatedContent.projects.length > 0) {
+            console.log('🔄 Updating projects section...')
             const enhancedLines = enhancedContent.split('\n').filter(line => line.trim())
-            const currentProject = { ...content.projects[0] }
+            const currentProject = { ...updatedContent.projects[0] }
             
             enhancedLines.forEach(line => {
               if (line.toLowerCase().includes('name:') || line.toLowerCase().includes('project:')) {
@@ -299,23 +324,33 @@ URL: ${project.url || ''}`
               }
             })
             
-            updateProject(0, 'name', currentProject.name)
-            updateProject(0, 'description', currentProject.description)
-            updateProject(0, 'technologies', currentProject.technologies || [])
-            updateProject(0, 'url', currentProject.url || '')
-            updateProject(0, 'details', currentProject.details || [])
+            updatedContent.projects[0] = currentProject
+            updateApplied = true
           }
           break
         
         default:
-          console.warn(`Enhancement handler not implemented for section: ${sectionType}`)
+          console.warn(`❌ Enhancement handler not implemented for section: ${sectionType}`)
+          return
       }
       
-      // Auto-save after enhancement
-      await handleSave()
+      if (updateApplied) {
+        console.log('✅ Content update applied successfully, updating state and saving...')
+        
+        // Update content with deep copy to ensure React detects changes
+        updateContent(updatedContent)
+        
+        // Force save immediately after content update
+        await handleSave(true)
+        
+        console.log('✅ Enhanced content saved successfully!')
+      } else {
+        console.warn('⚠️ No content updates were applied')
+      }
       
     } catch (error) {
-      console.error(`Failed to apply enhanced content for ${sectionType}:`, error)
+      console.error(`❌ Failed to apply enhanced content for ${sectionType}:`, error)
+      throw error // Re-throw to allow upper-level error handling
     }
   }
 
@@ -356,10 +391,49 @@ URL: ${project.url || ''}`
     }
   }, [content, resumeId, addToHistory])
 
-  const handleSave = async () => {
-    await forceSave()
-    if (content) {
-      onSave?.(content)
+  const handleSave = async (force = false) => {
+    const sessionId = saveLogger.generateSessionId()
+    const startTime = Date.now()
+    
+    // Start logging session
+    saveLogger.startSession(sessionId, resumeId, undefined)
+    saveLogger.logStep(sessionId, 'editor_handle_save', 'start', {
+      hasContent: !!content,
+      contentKeys: content ? Object.keys(content) : [],
+      summaryLength: content?.summary?.length || 0,
+      skillsCount: content?.skills?.length || 0,
+      experienceCount: content?.experience?.length || 0,
+      isDirty,
+      saving,
+      force,
+      trigger: force ? 'manual_force' : isDirty ? 'manual_dirty' : 'manual_clean'
+    })
+    
+    try {
+      if (force || isDirty) {
+        saveLogger.logStep(sessionId, 'editor_calling_force_save', 'start')
+        await forceSave(sessionId) // Pass sessionId for continuity
+        saveLogger.logStep(sessionId, 'editor_force_save_complete', 'success', undefined, undefined, startTime)
+      } else {
+        saveLogger.logStep(sessionId, 'editor_skip_save', 'warning', { reason: 'not_dirty_and_not_forced' })
+      }
+      
+      if (content) {
+        onSave?.(content)
+        saveLogger.logStep(sessionId, 'editor_on_save_callback', 'success')
+      }
+      
+      saveLogger.logStep(sessionId, 'save_complete', 'success')
+      saveLogger.endSession(sessionId, 'success')
+      
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      saveLogger.logStep(sessionId, 'editor_handle_save', 'error', {
+        error: errorMessage,
+        errorType: error?.constructor?.name
+      }, errorMessage)
+      saveLogger.endSession(sessionId, 'error')
+      throw error // Re-throw to maintain original error handling
     }
   }
   

@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { ResumeContent, ResumeExperience, ResumeEducation, ResumeProject } from '@/lib/resume/parser'
 import { ResumeService } from '@/lib/resume/service'
+import { saveLogger } from '@/lib/debug/save-logger'
 
 interface ResumeEditorState {
   // Core state
@@ -103,38 +104,96 @@ export const useResumeEditor = create<ResumeEditorState>((set, get) => ({
   },
   
   // Save changes to database with retry logic
-  saveResume: async (retryCount = 0) => {
-    const { content, resumeId } = get()
+  saveResume: async (retryCount = 0, sessionId?: string) => {
+    const { content, savedContent, resumeId } = get()
+    
+    // Create or use existing session ID
+    const currentSessionId = sessionId || saveLogger.generateSessionId()
+    if (!sessionId) {
+      // Only start new session if no sessionId provided
+      saveLogger.startSession(currentSessionId, resumeId, undefined)
+    }
+    
+    const stepStartTime = Date.now()
+    saveLogger.logStep(currentSessionId, 'hook_save_resume', 'start', { 
+      hasContent: !!content,
+      hasResumeId: !!resumeId,
+      retryCount 
+    })
+    
     if (!content || !resumeId) {
-      console.warn('Cannot save: missing content or resumeId')
+      const error = 'Cannot save: missing content or resumeId'
+      saveLogger.logStep(currentSessionId, 'hook_validation_failed', 'error', { 
+        content: !!content, 
+        resumeId 
+      }, error)
+      console.warn('❌ Cannot save: missing content or resumeId', { content: !!content, resumeId })
+      if (!sessionId) saveLogger.endSession(currentSessionId, 'error')
       return
     }
     
+    // Check if content has actually changed
+    const isDirtyCheck = JSON.stringify(content) !== JSON.stringify(savedContent)
+    saveLogger.logStep(currentSessionId, 'hook_dirty_check', 'success', {
+      resumeId, 
+      retryCount, 
+      contentSize: JSON.stringify(content).length,
+      isDirty: isDirtyCheck,
+      summaryPreview: content.summary?.substring(0, 50) + '...',
+      skillsCount: content.skills?.length || 0
+    })
+    
     set({ saving: true, error: null })
+    saveLogger.logStep(currentSessionId, 'hook_set_saving_state', 'success')
     
     try {
       // Validate content before saving
+      saveLogger.logStep(currentSessionId, 'hook_content_validation', 'start')
       if (!content.contact || typeof content.contact !== 'object') {
         throw new Error('Invalid resume content: missing or invalid contact information')
       }
+      saveLogger.logStep(currentSessionId, 'hook_content_validation', 'success')
       
       // Create a deep copy to prevent mutation during save
       const contentToSave = structuredClone(content)
+      saveLogger.logStep(currentSessionId, 'hook_content_clone', 'success', {
+        contentSample: {
+          summary: contentToSave.summary?.substring(0, 100),
+          skillsCount: contentToSave.skills?.length,
+          contactName: contentToSave.contact?.name,
+          experienceCount: contentToSave.experience?.length || 0
+        }
+      })
       
-      await ResumeService.updateResume(resumeId, { content: contentToSave })
+      saveLogger.logStep(currentSessionId, 'hook_calling_service', 'start')
+      const serviceStartTime = Date.now()
+      const savedResume = await ResumeService.updateResume(resumeId, { content: contentToSave }, currentSessionId)
+      saveLogger.logStep(currentSessionId, 'hook_service_complete', 'success', {
+        id: savedResume.id,
+        updatedAt: savedResume.updated_at,
+        version: savedResume.version
+      }, undefined, serviceStartTime)
       
-      console.log('✅ Resume saved successfully')
       set({ 
         savedContent: structuredClone(content), // Update saved state
         saving: false,
         error: null,
         lastAutoSave: Date.now()
       })
+      saveLogger.logStep(currentSessionId, 'hook_state_updated', 'success', undefined, undefined, stepStartTime)
+      
+      if (!sessionId) saveLogger.endSession(currentSessionId, 'success')
       
     } catch (error) {
-      console.error(`❌ Failed to save resume (attempt ${retryCount + 1}):`, error)
-      
       const errorMessage = error instanceof Error ? error.message : 'Failed to save resume'
+      
+      saveLogger.logStep(currentSessionId, 'hook_save_error', 'error', {
+        message: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
+        resumeId,
+        contentKeys: Object.keys(content),
+        retryCount
+      }, errorMessage)
       
       // Retry logic for network errors
       if (retryCount < 2 && (
@@ -142,12 +201,16 @@ export const useResumeEditor = create<ResumeEditorState>((set, get) => ({
         errorMessage.includes('timeout') ||
         errorMessage.includes('fetch')
       )) {
-        console.log(`🔄 Retrying save operation (${retryCount + 1}/2)...`)
+        saveLogger.logStep(currentSessionId, 'hook_retry_attempt', 'start', { 
+          retryCount: retryCount + 1,
+          reason: 'network_timeout_or_fetch_error'
+        })
+        
         // Wait progressively longer between retries
         await new Promise(resolve => setTimeout(resolve, (retryCount + 1) * 1000))
         
         set({ saving: false }) // Reset saving state temporarily
-        return get().saveResume(retryCount + 1)
+        return get().saveResume(retryCount + 1, currentSessionId) // Pass session ID for continuity
       }
       
       // Handle different error types
@@ -164,6 +227,11 @@ export const useResumeEditor = create<ResumeEditorState>((set, get) => ({
         error: userFriendlyError,
         saving: false 
       })
+      
+      if (!sessionId) saveLogger.endSession(currentSessionId, 'error')
+      
+      // Re-throw to allow upper-level error handling
+      throw error
     }
   },
   
@@ -182,9 +250,9 @@ export const useResumeEditor = create<ResumeEditorState>((set, get) => ({
   
   
   // Force save (for manual save button)
-  forceSave: async () => {
+  forceSave: async (sessionId?: string) => {
     const { saveResume } = get()
-    await saveResume()
+    await saveResume(0, sessionId) // Pass sessionId for continuity
   },
   
   // Enable auto-save
@@ -270,11 +338,20 @@ export const useResumeEditor = create<ResumeEditorState>((set, get) => ({
   
   // AI Enhancement specific
   applyAIEnhancement: async (fieldPath: string, value: string) => {
-    const { content, updateContent, saveResume } = get()
-    if (!content) return
+    const { content, updateContent, forceSave, resumeId } = get()
+    if (!content) {
+      console.error('❌ applyAIEnhancement: No content available')
+      return
+    }
+    if (!resumeId) {
+      console.error('❌ applyAIEnhancement: No resumeId available')
+      return
+    }
     
     const pathParts = fieldPath.split('.')
     let updatedContent = structuredClone(content)
+    
+    console.log('🔄 Applying AI enhancement:', { fieldPath, value: value.substring(0, 100) + '...', resumeId })
     
     try {
       if (pathParts[0] === 'contact') {
@@ -313,14 +390,28 @@ export const useResumeEditor = create<ResumeEditorState>((set, get) => ({
         }
       }
       
-      // Update content and save immediately
-      updateContent(updatedContent)
-      await saveResume()
+      console.log('🔄 Updating content and force saving...')
       
-      console.log('✅ AI Enhancement applied and saved:', fieldPath, value)
+      // Update content with deep copy to ensure React detects changes
+      updateContent(updatedContent)
+      
+      // Force save to immediately persist changes
+      await forceSave()
+      
+      console.log('✅ AI Enhancement applied and saved successfully:', fieldPath)
       
     } catch (error) {
-      console.error(`Failed to apply AI enhancement to ${fieldPath}:`, error)
+      console.error(`❌ Failed to apply AI enhancement to ${fieldPath}:`, error)
+      // Log additional error details
+      if (error instanceof Error) {
+        console.error('Error details:', {
+          message: error.message,
+          stack: error.stack,
+          resumeId,
+          fieldPath,
+          contentKeys: Object.keys(content)
+        })
+      }
       throw error
     }
   },
