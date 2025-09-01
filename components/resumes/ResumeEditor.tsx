@@ -21,7 +21,9 @@ import { useUIStore } from '@/store/ui'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { cn } from '@/lib/utils'
 import { saveLogger } from '@/lib/debug/save-logger'
-import { Plus, Trash2, Sparkles, AlertCircle, RefreshCw, Wand2, Copy, Undo2, Redo2, Save, History } from 'lucide-react'
+import { PDFGenerator } from '@/lib/pdf-generator'
+import { toast } from 'sonner'
+import { Plus, Trash2, Sparkles, AlertCircle, RefreshCw, Wand2, Copy, Undo2, Redo2, Save, History, Printer } from 'lucide-react'
 
 interface ResumeEditorProps {
   resumeId: string
@@ -436,6 +438,375 @@ URL: ${project.url || ''}`
       throw error // Re-throw to maintain original error handling
     }
   }
+
+  // Wrapper function for Button onClick to handle the MouseEvent parameter
+  const handleSaveClick = () => {
+    handleSave()
+  }
+
+  // Print functionality - Generate PDF using robust PDF generator
+  const handlePrint = async () => {
+    if (!content) {
+      console.warn('No content to print')
+      toast.error('No content to print')
+      return
+    }
+
+    // Show loading toast
+    toast.loading('Generating PDF...', { id: 'pdf-generation' })
+    console.log('🖨️ Starting PDF generation process')
+
+    let tempPreviewContainer: HTMLElement | null = null
+
+    try {
+      // First, save the current content to ensure we have the latest data
+      if (isDirty) {
+        console.log('📝 Saving current changes before PDF generation')
+        await handleSave(true)
+      }
+
+      // Create a temporary preview element for PDF generation
+      tempPreviewContainer = document.createElement('div')
+      tempPreviewContainer.id = `temp-pdf-preview-${Date.now()}`
+      tempPreviewContainer.style.position = 'absolute'
+      tempPreviewContainer.style.left = '-9999px'
+      tempPreviewContainer.style.top = '-9999px'
+      tempPreviewContainer.style.width = '794px' // A4 width at 96dpi
+      tempPreviewContainer.style.height = '1123px' // A4 height at 96dpi
+      tempPreviewContainer.style.backgroundColor = 'white'
+      tempPreviewContainer.style.color = 'black'
+      tempPreviewContainer.style.fontFamily = 'system-ui, -apple-system, sans-serif'
+      tempPreviewContainer.style.padding = '40px'
+      tempPreviewContainer.style.boxSizing = 'border-box'
+      tempPreviewContainer.className = 'resume-content'
+
+      console.log('📄 Generating clean HTML for PDF')
+      // Generate clean HTML for PDF
+      tempPreviewContainer.innerHTML = generatePrintableHTML()
+      document.body.appendChild(tempPreviewContainer)
+
+      // Wait for styles to be applied and DOM to update
+      await new Promise(resolve => setTimeout(resolve, 200))
+
+      // Generate PDF using the robust PDF generator
+      const resumeName = content.contact?.name || 'resume'
+      const sanitizedName = resumeName.replace(/[^a-zA-Z0-9\s-]/g, '').replace(/\s+/g, '_').toLowerCase()
+      
+      console.log('🔄 Calling PDFGenerator.downloadFromElement')
+      await PDFGenerator.downloadFromElement(tempPreviewContainer, {
+        filename: `${sanitizedName}_resume.pdf`,
+        quality: 0.95,
+        scale: 1.5, // Reduced scale for better compatibility
+        margin: 0.5
+      })
+
+      toast.success('PDF generated successfully!', { id: 'pdf-generation' })
+      console.log('✅ PDF generation completed successfully')
+
+    } catch (error) {
+      console.error('❌ PDF generation failed:', error)
+      
+      // Provide more helpful error messages
+      let errorMessage = 'Failed to generate PDF. Please try again.'
+      if (error instanceof Error) {
+        if (error.message.includes('oklch') || error.message.includes('color')) {
+          errorMessage = 'PDF generation failed due to color compatibility issues. The content has been simplified for printing.'
+        } else if (error.message.includes('canvas')) {
+          errorMessage = 'Unable to capture content for PDF. Please try refreshing the page.'
+        } else if (error.message.includes('memory')) {
+          errorMessage = 'Content too large for PDF generation. Try reducing content complexity.'
+        }
+      }
+      
+      toast.error(errorMessage, { 
+        id: 'pdf-generation',
+        duration: 5000 // Show error longer
+      })
+      
+      // Offer fallback option
+      setTimeout(() => {
+        toast.info('Tip: You can also use your browser\'s Print function (Ctrl+P) as an alternative.', {
+          duration: 7000
+        })
+      }, 1000)
+      
+    } finally {
+      // Ensure cleanup happens
+      if (tempPreviewContainer && document.body.contains(tempPreviewContainer)) {
+        try {
+          document.body.removeChild(tempPreviewContainer)
+          console.log('🧹 Temporary preview element cleaned up')
+        } catch (cleanupError) {
+          console.warn('Cleanup warning:', cleanupError)
+        }
+      }
+    }
+  }
+
+  // Generate clean HTML structure for printing with embedded CSS
+  const generatePrintableHTML = () => {
+    if (!content) return ''
+
+    const styles = `
+      <style>
+        body {
+          font-family: system-ui, -apple-system, sans-serif;
+          line-height: 1.5;
+          color: #000;
+          background: #fff;
+          margin: 0;
+          padding: 20px;
+          font-size: 12px;
+        }
+        
+        .contact-header {
+          text-align: center;
+          margin-bottom: 20px;
+          border-bottom: 2px solid #333;
+          padding-bottom: 10px;
+        }
+        
+        .contact-name {
+          font-size: 24px;
+          font-weight: bold;
+          margin-bottom: 5px;
+        }
+        
+        .contact-details {
+          font-size: 11px;
+          color: #555;
+        }
+        
+        .resume-section {
+          margin-bottom: 20px;
+          page-break-inside: avoid;
+        }
+        
+        .section-title {
+          font-size: 14px;
+          font-weight: bold;
+          text-transform: uppercase;
+          border-bottom: 1px solid #333;
+          padding-bottom: 3px;
+          margin-bottom: 10px;
+          margin-top: 15px;
+        }
+        
+        .entry {
+          margin-bottom: 12px;
+          page-break-inside: avoid;
+        }
+        
+        .entry-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+          margin-bottom: 3px;
+        }
+        
+        .entry-title {
+          font-weight: bold;
+          font-size: 13px;
+        }
+        
+        .entry-company {
+          font-style: italic;
+          font-size: 12px;
+          margin-top: 2px;
+        }
+        
+        .entry-date {
+          font-size: 11px;
+          color: #666;
+          text-align: right;
+          white-space: nowrap;
+        }
+        
+        ul {
+          margin: 5px 0 0 20px;
+          padding: 0;
+        }
+        
+        li {
+          margin-bottom: 3px;
+          font-size: 11px;
+        }
+        
+        p {
+          margin-bottom: 8px;
+          font-size: 12px;
+        }
+        
+        .skills-container {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 6px;
+        }
+        
+        .skill-tag {
+          border: 1px solid #333;
+          background: #fff;
+          padding: 3px 6px;
+          font-size: 10px;
+          display: inline-block;
+          border-radius: 3px;
+        }
+        
+        strong {
+          font-weight: 600;
+        }
+        
+        @media print {
+          body { margin: 0; padding: 10px; }
+          .resume-section { page-break-inside: avoid; }
+          .entry { page-break-inside: avoid; }
+        }
+      </style>
+    `
+
+    let html = styles
+
+    // Contact Header
+    if (content.contact) {
+      html += `
+        <div class="contact-header">
+          ${content.contact.name ? `<div class="contact-name">${escapeHtml(content.contact.name)}</div>` : ''}
+          <div class="contact-details">
+            ${[
+              content.contact.email,
+              content.contact.phone,
+              content.contact.location,
+              content.contact.linkedin,
+              content.contact.github,
+              content.contact.website
+            ].filter(Boolean).map(escapeHtml).join(' • ')}
+          </div>
+        </div>
+      `
+    }
+
+    // Summary/About Section
+    if (content.summary) {
+      html += `
+        <div class="resume-section">
+          <div class="section-title">Professional Summary</div>
+          <p>${escapeHtml(content.summary)}</p>
+        </div>
+      `
+    }
+
+    // Experience Section
+    if (content.experience && content.experience.length > 0) {
+      html += `<div class="resume-section">
+        <div class="section-title">Professional Experience</div>`
+      
+      content.experience.forEach(exp => {
+        html += `
+          <div class="entry">
+            <div class="entry-header">
+              <div>
+                <div class="entry-title">${escapeHtml(exp.title)}</div>
+                <div class="entry-company">${escapeHtml(exp.company)}</div>
+              </div>
+              <div class="entry-date">${escapeHtml(exp.startDate || '')} - ${escapeHtml(exp.endDate || 'Present')}</div>
+            </div>
+            ${exp.description ? `<p>${escapeHtml(exp.description)}</p>` : ''}
+            ${exp.achievements && exp.achievements.length > 0 ? `
+              <ul>
+                ${exp.achievements.map(achievement => `<li>${escapeHtml(achievement)}</li>`).join('')}
+              </ul>
+            ` : ''}
+          </div>
+        `
+      })
+      
+      html += '</div>'
+    }
+
+    // Education Section
+    if (content.education && content.education.length > 0) {
+      html += `<div class="resume-section">
+        <div class="section-title">Education</div>`
+      
+      content.education.forEach(edu => {
+        html += `
+          <div class="entry">
+            <div class="entry-header">
+              <div>
+                <div class="entry-title">${escapeHtml(edu.degree)}</div>
+                <div class="entry-company">${escapeHtml(edu.school)}</div>
+              </div>
+              <div class="entry-date">${escapeHtml(edu.graduationDate || '')}</div>
+            </div>
+            ${edu.gpa ? `<p>GPA: ${escapeHtml(edu.gpa)}</p>` : ''}
+            ${edu.honors && edu.honors.length > 0 ? `
+              <ul>
+                ${edu.honors.map(honor => `<li>${escapeHtml(honor)}</li>`).join('')}
+              </ul>
+            ` : ''}
+          </div>
+        `
+      })
+      
+      html += '</div>'
+    }
+
+    // Projects Section
+    if (content.projects && content.projects.length > 0) {
+      html += `<div class="resume-section">
+        <div class="section-title">Projects</div>`
+      
+      content.projects.forEach(project => {
+        html += `
+          <div class="entry">
+            <div class="entry-header">
+              <div>
+                <div class="entry-title">${escapeHtml(project.name)}</div>
+                ${project.url ? `<div class="entry-company">${escapeHtml(project.url)}</div>` : ''}
+              </div>
+              ${project.startDate ? `<div class="entry-date">${escapeHtml(project.startDate)} - ${escapeHtml(project.endDate || 'Present')}</div>` : ''}
+            </div>
+            <p>${escapeHtml(project.description)}</p>
+            ${project.details && project.details.length > 0 ? `
+              <ul>
+                ${project.details.map(detail => `<li>${escapeHtml(detail)}</li>`).join('')}
+              </ul>
+            ` : ''}
+            ${project.technologies && project.technologies.length > 0 ? `
+              <p><strong>Technologies:</strong> ${project.technologies.map(escapeHtml).join(', ')}</p>
+            ` : ''}
+          </div>
+        `
+      })
+      
+      html += '</div>'
+    }
+
+    // Skills Section
+    if (content.skills && content.skills.length > 0) {
+      html += `
+        <div class="resume-section">
+          <div class="section-title">Skills</div>
+          <div class="skills-container">
+            ${content.skills.map(skill => `<span class="skill-tag">${escapeHtml(skill)}</span>`).join('')}
+          </div>
+        </div>
+      `
+    }
+
+    return html
+  }
+
+  // HTML escape utility to prevent XSS and formatting issues
+  const escapeHtml = (text: string | undefined | null): string => {
+    if (!text) return ''
+    return text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;')
+  }
   
   const handleUndo = () => {
     const previousContent = historyUndo()
@@ -627,7 +998,18 @@ URL: ${project.url || ''}`
                   Redo
                 </Button>
                 <Button
-                  onClick={handleSave}
+                  variant="outline"
+                  size="sm"
+                  onClick={handlePrint}
+                  disabled={!content}
+                  className="gap-1"
+                  title="Print resume as PDF"
+                >
+                  <Printer className="h-4 w-4" />
+                  Print
+                </Button>
+                <Button
+                  onClick={handleSaveClick}
                   disabled={saving}
                   className="gap-2 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white font-medium px-4"
                 >

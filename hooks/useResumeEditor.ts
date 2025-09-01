@@ -18,13 +18,13 @@ interface ResumeEditorState {
   // Actions
   loadResume: (id: string) => Promise<void>
   updateContent: (content: ResumeContent, skipHistory?: boolean) => void
-  saveResume: (retryCount?: number) => Promise<void>
+  saveResume: (retryCount?: number, sessionId?: string) => Promise<void>
   resetChanges: () => void
   clearError: () => void
   enableAutoSave: () => void
   disableAutoSave: () => void
   validateContent: (content: ResumeContent) => string[]
-  forceSave: () => Promise<void>
+  forceSave: (sessionId?: string) => Promise<void>
   
   // Section-specific updates
   updateContact: (field: string, value: string) => void
@@ -111,7 +111,7 @@ export const useResumeEditor = create<ResumeEditorState>((set, get) => ({
     const currentSessionId = sessionId || saveLogger.generateSessionId()
     if (!sessionId) {
       // Only start new session if no sessionId provided
-      saveLogger.startSession(currentSessionId, resumeId, undefined)
+      saveLogger.startSession(currentSessionId, resumeId || undefined, undefined)
     }
     
     const stepStartTime = Date.now()
@@ -266,7 +266,7 @@ export const useResumeEditor = create<ResumeEditorState>((set, get) => ({
       if (autoSaveTimer) clearInterval(autoSaveTimer)
       autoSaveTimer = setInterval(() => {
         const currentState = get()
-        const { isDirty } = useResumeEditorComputed.getState()
+        const { isDirty } = useResumeEditorComputed()
         
         if (currentState.autoSaveEnabled && isDirty && !currentState.saving && currentState.content) {
           console.log('💾 Auto-saving resume...')
