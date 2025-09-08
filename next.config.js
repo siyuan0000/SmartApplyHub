@@ -2,7 +2,7 @@
   const nextConfig = {
     output: 'export',
     trailingSlash: true,
-    basePath: '/SmartApply-Hub',
+    basePath: '/SmartApplyHub',
     images: {
       unoptimized: true
     },
