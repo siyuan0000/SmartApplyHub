@@ -94,14 +94,30 @@ export function useSectionEnhancement() {
     ]
   }
 
+  // Word count limits by section type
+  const WORD_LIMITS: Record<string, number> = {
+    summary: 80,
+    experience: 150,
+    projects: 100,
+    education: 100,
+    skills: 30,
+    contact: Infinity
+  }
+
   /**
-   * Create system prompt with HR insights
+   * Create system prompt with HR insights and word count awareness
    */
   const createSystemPrompt = (sectionType: string, hrInsights: string[]): string => {
+    const wordLimit = WORD_LIMITS[sectionType] || 150
+    const limitText = wordLimit === Infinity 
+      ? '' 
+      : `\n• Target maximum word count for this section: ${wordLimit} words
+• If content is too long, shorten it without losing clarity or ATS relevance`
+
     return `You are a professional resume writer and HR expert. You are helping to enhance the ${sectionType} section of a resume.
 
 HR Expert Guidelines for ${sectionType} sections:
-${hrInsights.map(insight => `• ${insight}`).join('\n')}
+${hrInsights.map(insight => `• ${insight}`).join('\n')}${limitText}
 
 Your task is to:
 1. Improve the content while maintaining the candidate's voice
@@ -109,15 +125,43 @@ Your task is to:
 3. Ensure proper formatting and professional language
 4. Optimize for both human recruiters and applicant tracking systems
 5. Provide specific, actionable improvements
+6. Keep content within the specified word count limit while preserving impact
 
 CRITICAL: You must respond in the exact delimiter format specified by the user. Follow the format instructions precisely.`
   }
 
   /**
-   * Create user prompt with context
+   * Helper function to count words in text
+   */
+  const countWords = (text: string): number => {
+    if (!text || !text.trim()) return 0
+    return text.trim().split(/\s+/).length
+  }
+
+  /**
+   * Helper function to get section label for display
+   */
+  const getSectionLabel = (sectionType: string): string => {
+    const labels: Record<string, string> = {
+      summary: 'Professional Summary',
+      experience: 'Experience',
+      projects: 'Projects',
+      education: 'Education',
+      skills: 'Skills',
+      contact: 'Contact Information'
+    }
+    return labels[sectionType] || sectionType
+  }
+
+  /**
+   * Create user prompt with context and word count control
    */
   const createUserPrompt = (context: EnhancementContext): string => {
     const isEmpty = !context.originalContent || !context.originalContent.trim()
+    const wordLimit = WORD_LIMITS[context.sectionType] || 150
+    const currentWordCount = countWords(context.originalContent || '')
+    const needsConciseRewrite = !isEmpty && currentWordCount > wordLimit
+    const sectionLabel = getSectionLabel(context.sectionType)
     
     let prompt = isEmpty 
       ? `Please create a professional ${context.sectionType} section from scratch:
@@ -129,6 +173,12 @@ Current content: [Empty - please generate new content]
 Current content:
 ${context.originalContent}
 `
+
+    // Add word count information for non-contact sections
+    if (wordLimit !== Infinity) {
+      prompt += `\nWord count target: Maximum ${wordLimit} words for ${sectionLabel} section${!isEmpty ? ` (current: ${currentWordCount} words)` : ''}
+`
+    }
 
     if (context.jobDescription) {
       prompt += `\nTarget job context:
@@ -147,16 +197,28 @@ ${context.customPrompt}
 1. Professional ${context.sectionType} content following industry best practices
 2. Content that would be impressive to recruiters and hiring managers
 3. Realistic but compelling information (use placeholder data where needed)
-4. Content optimized for ATS (Applicant Tracking Systems)
+4. Content optimized for ATS (Applicant Tracking Systems)${wordLimit !== Infinity ? `\n5. Content that stays within ${wordLimit} words` : ''}
 
 Note: Since starting from scratch, create professional placeholder content that the user can customize with their specific details.`
     } else {
       prompt += `\nPlease provide:
 1. Enhanced version of the content
 2. Key improvements made
-3. Additional suggestions for optimization
+3. Additional suggestions for optimization${wordLimit !== Infinity ? `\n4. Content that stays within ${wordLimit} words` : ''}
 
 Focus on making this section stand out while remaining truthful and professional.`
+    }
+
+    // Add concise rewrite prompt if content exceeds word limit
+    if (needsConciseRewrite) {
+      prompt += `
+
+=== CONTENT TOO LONG — PLEASE CONCISELY REWRITE ===
+The enhanced content exceeds the maximum word count for this section. Please rewrite the content to stay within ${wordLimit} words while preserving:
+• Quantified impact
+• Action verbs and ATS keywords
+• Narrative consistency
+• Most compelling achievements and details`
     }
 
     prompt += `\n\n###
@@ -351,28 +413,67 @@ Output *exactly* in this format – no markdown fences:
   }
 
   /**
+   * Validate and optionally truncate enhanced content if it exceeds word limits
+   */
+  const validateAndTruncateContent = (enhancedText: string, sectionType: string): { text: string; wasTrimed: boolean } => {
+    const wordLimit = WORD_LIMITS[sectionType] || 150
+    
+    if (wordLimit === Infinity) {
+      return { text: enhancedText, wasTrimed: false }
+    }
+    
+    const words = enhancedText.trim().split(/\s+/)
+    
+    if (words.length <= wordLimit) {
+      return { text: enhancedText, wasTrimed: false }
+    }
+    
+    // Truncate to word limit and add indication
+    const truncatedWords = words.slice(0, wordLimit)
+    const truncatedText = truncatedWords.join(' ')
+    
+    console.warn(`⚠️ [Word Limit] Enhanced ${sectionType} content exceeded ${wordLimit} words (${words.length} words), truncated to fit limit.`)
+    
+    return { text: truncatedText, wasTrimed: true }
+  }
+
+  /**
    * Robust AI response parser with JSON-first approach and improved regex fallback
    * @param raw - Raw AI response string
    * @param provider - AI provider name (optional)
+   * @param sectionType - Section type for word count validation
    * @returns Parsed SectionEnhancementResult
    */
-  const parseAiResponse = (raw: string, provider?: string): SectionEnhancementResult => {
+  const parseAiResponse = (raw: string, provider?: string, sectionType?: string): SectionEnhancementResult => {
     // Normalize line endings
     const content = raw.replace(/\r\n/g, '\n').trim()
     
     // Try to locate JSON via delimiters or first { ... } block
     const jsonResult = tryParseJson(content)
     if (jsonResult) {
+      let enhancedText = jsonResult.enhancedText || ''
+      let suggestions = Array.isArray(jsonResult.suggestions) ? jsonResult.suggestions.filter((s: any) => typeof s === 'string' && s.trim().length >= 5) : []
+      
+      // Validate word count if section type is provided
+      if (sectionType && enhancedText) {
+        const { text: validatedText, wasTrimed } = validateAndTruncateContent(enhancedText, sectionType)
+        enhancedText = validatedText
+        
+        if (wasTrimed) {
+          suggestions.unshift('Content was automatically shortened to meet word count requirements')
+        }
+      }
+      
       return {
-        enhancedText: jsonResult.enhancedText || '',
-        suggestions: Array.isArray(jsonResult.suggestions) ? jsonResult.suggestions.filter((s: any) => typeof s === 'string' && s.trim().length >= 5) : [],
+        enhancedText,
+        suggestions,
         changes: Array.isArray(jsonResult.changes) ? jsonResult.changes.filter((c: any) => typeof c === 'string' && c.trim().length >= 5) : [],
         provider
       }
     }
     
     // Fallback to improved regex parsing
-    return parseWithRegex(content, provider)
+    return parseWithRegex(content, provider, sectionType)
   }
   
   /**
@@ -405,13 +506,14 @@ Output *exactly* in this format – no markdown fences:
   /**
    * Parse content using improved regex patterns
    */
-  const parseWithRegex = (content: string, provider?: string): SectionEnhancementResult => {
+  const parseWithRegex = (content: string, provider?: string, sectionType?: string): SectionEnhancementResult => {
     const bulletRegex = /^\s*(?:[\-*•+]|\d+[.)])\s*/gm
     
     // Extract enhanced text
     let enhancedText = extractTextSection(content, [
       /(?:enhanced version|enhanced content|improved version|improved content):\s*\n([\s\S]*?)(?:\n\n|$)/i,
       /(?:here's the enhanced|here is the enhanced)([\s\S]*?)(?:\n\n|$)/i,
+      /=== ENHANCED_CONTENT ===([\s\S]*?)(?:\n===|$)/i,
       /```\s*([\s\S]*?)\s*```/
     ])
     
@@ -422,7 +524,7 @@ Output *exactly* in this format – no markdown fences:
     }
     
     // Extract suggestions
-    const suggestions = extractListSection(content, [
+    let suggestions = extractListSection(content, [
       /(?:suggestions|recommendations|additional suggestions):\s*\n([\s\S]*?)(?:\n\n|$)/i,
       /(?:key improvements|improvements made):\s*\n([\s\S]*?)(?:\n\n|$)/i
     ], bulletRegex)
@@ -432,6 +534,16 @@ Output *exactly* in this format – no markdown fences:
       /(?:changes made|key improvements|improvements):\s*\n([\s\S]*?)(?:\n\n|$)/i,
       /(?:what i changed|modifications):\s*\n([\s\S]*?)(?:\n\n|$)/i
     ], bulletRegex)
+    
+    // Validate word count if section type is provided
+    if (sectionType && enhancedText) {
+      const { text: validatedText, wasTrimed } = validateAndTruncateContent(enhancedText.trim(), sectionType)
+      enhancedText = validatedText
+      
+      if (wasTrimed) {
+        suggestions.unshift('Content was automatically shortened to meet word count requirements')
+      }
+    }
     
     return {
       enhancedText: enhancedText.trim(),

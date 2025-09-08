@@ -1,0 +1,432 @@
+/**
+ * Isolated Print Styles for Resume Editor
+ * 
+ * This CSS file contains print-specific styles that are injected into the isolated iframe
+ * to ensure pixel-perfect PDF generation without affecting the main application.
+ * 
+ * Key principles:
+ * - No global selectors that could affect the main app
+ * - Preserve exact visual appearance from preview
+ * - Support A4 and Letter page sizes
+ * - Proper pagination and page breaks
+ */
+
+/* ==========================================================================
+   BASE PRINT STYLES
+   ========================================================================== */
+
+/* Ensure color accuracy in print */
+* {
+  -webkit-print-color-adjust: exact !important;
+  print-color-adjust: exact !important;
+  box-sizing: border-box !important;
+}
+
+/* Reset body for print */
+body {
+  margin: 0 !important;
+  padding: 0 !important;
+  font-family: inherit !important;
+  line-height: inherit !important;
+  color: inherit !important;
+  background: white !important;
+  width: 100% !important;
+  min-height: 100vh !important;
+}
+
+/* ==========================================================================
+   PAGE SETUP
+   ========================================================================== */
+
+/* A4 Page Setup */
+@page {
+  size: A4;
+  margin: 0.5in;
+}
+
+/* Letter Page Setup (alternative) */
+@page letter {
+  size: letter;
+  margin: 0.5in;
+}
+
+/* ==========================================================================
+   TYPOGRAPHY PRESERVATION
+   ========================================================================== */
+
+/* Preserve exact typography from preview */
+h1, h2, h3, h4, h5, h6 {
+  font-family: inherit !important;
+  font-weight: inherit !important;
+  font-size: inherit !important;
+  line-height: inherit !important;
+  color: inherit !important;
+  margin: inherit !important;
+  padding: inherit !important;
+  text-rendering: optimizeLegibility !important;
+  -webkit-font-smoothing: antialiased !important;
+  -moz-osx-font-smoothing: grayscale !important;
+}
+
+p, div, span, li, ul, ol {
+  font-family: inherit !important;
+  font-size: inherit !important;
+  line-height: inherit !important;
+  color: inherit !important;
+  margin: inherit !important;
+  padding: inherit !important;
+  text-rendering: optimizeLegibility !important;
+  -webkit-font-smoothing: antialiased !important;
+  -moz-osx-font-smoothing: grayscale !important;
+}
+
+/* ==========================================================================
+   LAYOUT PRESERVATION
+   ========================================================================== */
+
+/* Preserve flexbox layouts */
+.flex, .flex-col, .flex-row, .flex-wrap, .flex-nowrap {
+  display: flex !important;
+  flex-direction: inherit !important;
+  flex-wrap: inherit !important;
+}
+
+/* Preserve grid layouts */
+.grid, .grid-cols-1, .grid-cols-2, .grid-cols-3, .grid-cols-4 {
+  display: grid !important;
+  grid-template-columns: inherit !important;
+  gap: inherit !important;
+}
+
+/* Preserve spacing utilities */
+.space-y-4 > * + * { margin-top: 1rem !important; }
+.space-y-2 > * + * { margin-top: 0.5rem !important; }
+.space-y-1 > * + * { margin-top: 0.25rem !important; }
+.space-y-0\.5 > * + * { margin-top: 0.125rem !important; }
+
+.gap-1 { gap: 0.25rem !important; }
+.gap-2 { gap: 0.5rem !important; }
+.gap-4 { gap: 1rem !important; }
+.gap-6 { gap: 1.5rem !important; }
+
+/* ==========================================================================
+   COLOR PRESERVATION
+   ========================================================================== */
+
+/* Preserve text colors exactly as in preview */
+.text-gray-900 { color: rgb(17, 24, 39) !important; }
+.text-gray-800 { color: rgb(31, 41, 55) !important; }
+.text-gray-700 { color: rgb(55, 65, 81) !important; }
+.text-gray-600 { color: rgb(75, 85, 99) !important; }
+.text-gray-500 { color: rgb(107, 114, 128) !important; }
+.text-gray-400 { color: rgb(156, 163, 175) !important; }
+.text-gray-300 { color: rgb(209, 213, 219) !important; }
+
+.text-blue-600 { color: rgb(37, 99, 235) !important; }
+.text-blue-500 { color: rgb(59, 130, 246) !important; }
+.text-blue-400 { color: rgb(96, 165, 250) !important; }
+
+.text-black { color: rgb(0, 0, 0) !important; }
+.text-white { color: rgb(255, 255, 255) !important; }
+
+/* Preserve background colors exactly as in preview */
+.bg-white { background-color: rgb(255, 255, 255) !important; }
+.bg-gray-50 { background-color: rgb(249, 250, 251) !important; }
+.bg-gray-100 { background-color: rgb(243, 244, 246) !important; }
+.bg-gray-200 { background-color: rgb(229, 231, 235) !important; }
+
+.bg-blue-50 { background-color: rgb(239, 246, 255) !important; }
+.bg-blue-100 { background-color: rgb(219, 234, 254) !important; }
+.bg-blue-200 { background-color: rgb(191, 219, 254) !important; }
+
+/* ==========================================================================
+   BORDER PRESERVATION
+   ========================================================================== */
+
+/* Preserve border styles exactly as in preview */
+.border { border-width: 1px !important; border-style: solid !important; }
+.border-b { border-bottom-width: 1px !important; border-bottom-style: solid !important; }
+.border-t { border-top-width: 1px !important; border-top-style: solid !important; }
+.border-l { border-left-width: 1px !important; border-left-style: solid !important; }
+.border-r { border-right-width: 1px !important; border-right-style: solid !important; }
+
+.border-2 { border-width: 2px !important; border-style: solid !important; }
+.border-l-2 { border-left-width: 2px !important; border-left-style: solid !important; }
+.border-b-2 { border-bottom-width: 2px !important; border-bottom-style: solid !important; }
+
+/* Preserve border colors */
+.border-gray-200 { border-color: rgb(229, 231, 235) !important; }
+.border-gray-300 { border-color: rgb(209, 213, 219) !important; }
+.border-blue-200 { border-color: rgb(191, 219, 254) !important; }
+.border-blue-300 { border-color: rgb(147, 197, 253) !important; }
+
+/* ==========================================================================
+   SPACING PRESERVATION
+   ========================================================================== */
+
+/* Margin utilities */
+.m-0 { margin: 0 !important; }
+.m-1 { margin: 0.25rem !important; }
+.m-2 { margin: 0.5rem !important; }
+.m-4 { margin: 1rem !important; }
+.m-6 { margin: 1.5rem !important; }
+
+.mb-0 { margin-bottom: 0 !important; }
+.mb-1 { margin-bottom: 0.25rem !important; }
+.mb-2 { margin-bottom: 0.5rem !important; }
+.mb-4 { margin-bottom: 1rem !important; }
+.mb-6 { margin-bottom: 1.5rem !important; }
+
+.mt-0 { margin-top: 0 !important; }
+.mt-1 { margin-top: 0.25rem !important; }
+.mt-2 { margin-top: 0.5rem !important; }
+.mt-4 { margin-top: 1rem !important; }
+.mt-6 { margin-top: 1.5rem !important; }
+
+.ml-0 { margin-left: 0 !important; }
+.ml-1 { margin-left: 0.25rem !important; }
+.ml-2 { margin-left: 0.5rem !important; }
+.ml-4 { margin-left: 1rem !important; }
+
+.mr-0 { margin-right: 0 !important; }
+.mr-1 { margin-right: 0.25rem !important; }
+.mr-2 { margin-right: 0.5rem !important; }
+.mr-4 { margin-right: 1rem !important; }
+
+/* Padding utilities */
+.p-0 { padding: 0 !important; }
+.p-1 { padding: 0.25rem !important; }
+.p-2 { padding: 0.5rem !important; }
+.p-4 { padding: 1rem !important; }
+.p-6 { padding: 1.5rem !important; }
+
+.pb-0 { padding-bottom: 0 !important; }
+.pb-1 { padding-bottom: 0.25rem !important; }
+.pb-2 { padding-bottom: 0.5rem !important; }
+.pb-4 { padding-bottom: 1rem !important; }
+.pb-6 { padding-bottom: 1.5rem !important; }
+
+.pt-0 { padding-top: 0 !important; }
+.pt-1 { padding-top: 0.25rem !important; }
+.pt-2 { padding-top: 0.5rem !important; }
+.pt-4 { padding-top: 1rem !important; }
+.pt-6 { padding-top: 1.5rem !important; }
+
+.pl-0 { padding-left: 0 !important; }
+.pl-1 { padding-left: 0.25rem !important; }
+.pl-2 { padding-left: 0.5rem !important; }
+.pl-3 { padding-left: 0.75rem !important; }
+.pl-4 { padding-left: 1rem !important; }
+
+.pr-0 { padding-right: 0 !important; }
+.pr-1 { padding-right: 0.25rem !important; }
+.pr-2 { padding-right: 0.5rem !important; }
+.pr-4 { padding-right: 1rem !important; }
+
+/* ==========================================================================
+   TYPOGRAPHY UTILITIES
+   ========================================================================== */
+
+/* Font sizes */
+.text-xs { font-size: 0.75rem !important; line-height: 1rem !important; }
+.text-sm { font-size: 0.875rem !important; line-height: 1.25rem !important; }
+.text-base { font-size: 1rem !important; line-height: 1.5rem !important; }
+.text-lg { font-size: 1.125rem !important; line-height: 1.75rem !important; }
+.text-xl { font-size: 1.25rem !important; line-height: 1.75rem !important; }
+.text-2xl { font-size: 1.5rem !important; line-height: 2rem !important; }
+.text-3xl { font-size: 1.875rem !important; line-height: 2.25rem !important; }
+
+/* Font weights */
+.font-thin { font-weight: 100 !important; }
+.font-light { font-weight: 300 !important; }
+.font-normal { font-weight: 400 !important; }
+.font-medium { font-weight: 500 !important; }
+.font-semibold { font-weight: 600 !important; }
+.font-bold { font-weight: 700 !important; }
+.font-extrabold { font-weight: 800 !important; }
+.font-black { font-weight: 900 !important; }
+
+/* Text alignment */
+.text-left { text-align: left !important; }
+.text-center { text-align: center !important; }
+.text-right { text-align: right !important; }
+.text-justify { text-align: justify !important; }
+
+/* ==========================================================================
+   EFFECTS PRESERVATION
+   ========================================================================== */
+
+/* Preserve shadows exactly as in preview */
+.shadow-sm { box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05) !important; }
+.shadow { box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1) !important; }
+.shadow-md { box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1) !important; }
+.shadow-lg { box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1) !important; }
+.shadow-xl { box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1) !important; }
+
+/* Preserve border radius */
+.rounded { border-radius: 0.25rem !important; }
+.rounded-sm { border-radius: 0.125rem !important; }
+.rounded-md { border-radius: 0.375rem !important; }
+.rounded-lg { border-radius: 0.5rem !important; }
+.rounded-xl { border-radius: 0.75rem !important; }
+.rounded-2xl { border-radius: 1rem !important; }
+.rounded-full { border-radius: 9999px !important; }
+
+/* ==========================================================================
+   PAGE BREAK CONTROLS
+   ========================================================================== */
+
+/* Page break utilities */
+.page-break-before {
+  page-break-before: always !important;
+}
+
+.page-break-after {
+  page-break-after: always !important;
+}
+
+.page-break-inside-avoid {
+  page-break-inside: avoid !important;
+}
+
+.page-break-inside-auto {
+  page-break-inside: auto !important;
+}
+
+/* Avoid breaking these elements */
+h1, h2, h3, h4, h5, h6 {
+  page-break-after: avoid !important;
+}
+
+/* Keep related content together */
+.entry, .experience-item, .education-item, .project-item {
+  page-break-inside: avoid !important;
+}
+
+/* ==========================================================================
+   INTERACTIVE ELEMENTS
+   ========================================================================== */
+
+/* Hide interactive elements in print */
+button, 
+.no-print, 
+[role="button"], 
+.hover\:underline:hover,
+[onclick],
+input[type="button"],
+input[type="submit"],
+input[type="reset"] {
+  display: none !important;
+}
+
+/* ==========================================================================
+   MEDIA AND ASSETS
+   ========================================================================== */
+
+/* Ensure proper rendering of images and media */
+img, svg, canvas {
+  max-width: 100% !important;
+  height: auto !important;
+  page-break-inside: avoid !important;
+}
+
+/* Preserve SVG styling */
+svg {
+  fill: inherit !important;
+  stroke: inherit !important;
+}
+
+/* ==========================================================================
+   RESPONSIVE PRINT ADJUSTMENTS
+   ========================================================================== */
+
+/* Ensure content fits within page bounds */
+.resume-content {
+  max-width: 100% !important;
+  overflow: hidden !important;
+}
+
+/* Adjust for smaller content areas */
+@media print and (max-width: 8.5in) {
+  .resume-content {
+    font-size: 0.9em !important;
+  }
+}
+
+/* ==========================================================================
+   TEMPLATE-SPECIFIC OVERRIDES
+   ========================================================================== */
+
+/* Professional template adjustments */
+.template-professional .resume-content {
+  font-family: 'Times New Roman', serif !important;
+}
+
+.template-professional h1 {
+  font-size: 1.5em !important;
+  font-weight: bold !important;
+  text-align: center !important;
+  margin-bottom: 0.5em !important;
+}
+
+.template-professional h2 {
+  font-size: 1.2em !important;
+  font-weight: bold !important;
+  text-transform: uppercase !important;
+  border-bottom: 1px solid #000 !important;
+  padding-bottom: 0.2em !important;
+  margin-top: 1em !important;
+  margin-bottom: 0.5em !important;
+}
+
+/* Modern template adjustments */
+.template-modern .resume-content {
+  font-family: 'Arial', sans-serif !important;
+}
+
+.template-modern h1 {
+  font-size: 1.6em !important;
+  font-weight: 300 !important;
+  color: #2563eb !important;
+  margin-bottom: 0.3em !important;
+}
+
+.template-modern h2 {
+  font-size: 1.1em !important;
+  font-weight: 600 !important;
+  color: #374151 !important;
+  margin-top: 0.8em !important;
+  margin-bottom: 0.4em !important;
+}
+
+/* ==========================================================================
+   PRINT OPTIMIZATION
+   ========================================================================== */
+
+/* Optimize for print quality */
+@media print {
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  
+  body {
+    font-size: 12pt !important;
+    line-height: 1.4 !important;
+  }
+  
+  /* Ensure good contrast for print */
+  .text-gray-600, .text-gray-500 {
+    color: #000 !important;
+  }
+  
+  /* Simplify backgrounds for print */
+  .bg-blue-50 {
+    background-color: #f8f9fa !important;
+  }
+  
+  /* Ensure borders are visible */
+  .border-gray-200 {
+    border-color: #ccc !important;
+  }
+}

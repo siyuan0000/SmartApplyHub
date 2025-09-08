@@ -106,10 +106,25 @@ export async function POST(req: NextRequest) {
   }
 }
 
+// Word count limits by section type
+const WORD_LIMITS: Record<string, number> = {
+  summary: 80,
+  experience: 150,
+  projects: 100,
+  education: 100,
+  skills: 30,
+  contact: Infinity
+}
+
 // Helper functions (copied from the hook)
 function createSystemPrompt(sectionType: string, hrInsights?: string[]): string {
   const insights = hrInsights || getDefaultHRInsights(sectionType)
   const insightText = insights.length > 0 ? insights.join('\n• ') : ''
+  const wordLimit = WORD_LIMITS[sectionType] || 150
+  const limitText = wordLimit === Infinity 
+    ? '' 
+    : `\n• Target maximum word count for this section: ${wordLimit} words
+• If content is too long, shorten it without losing clarity or ATS relevance`
   
   return `You are an expert resume writer and career consultant. Help enhance a ${sectionType} section.
 
@@ -117,17 +132,54 @@ Key guidelines:
 • Use action verbs and quantifiable achievements
 • Optimize for ATS (Applicant Tracking Systems)
 • Keep content truthful and professional
-• Tailor language to the job market
+• Tailor language to the job market${limitText}
 
 ${insightText ? `HR Insights:\n• ${insightText}` : ''}
 
-Always provide practical, implementable suggestions that improve the candidate's marketability.`
+Always provide practical, implementable suggestions that improve the candidate's marketability while staying within word count limits.`
 }
 
-function createUserPrompt(context: any): string {
+// Helper function to count words in text
+function countWords(text: string): number {
+  if (!text || !text.trim()) return 0
+  return text.trim().split(/\s+/).length
+}
+
+// Helper function to get section label for display
+function getSectionLabel(sectionType: string): string {
+  const labels: Record<string, string> = {
+    summary: 'Professional Summary',
+    experience: 'Experience',
+    projects: 'Projects',
+    education: 'Education',
+    skills: 'Skills',
+    contact: 'Contact Information'
+  }
+  return labels[sectionType] || sectionType
+}
+
+interface EnhancementContext {
+  sectionType: string
+  originalContent?: string
+  customPrompt?: string
+  jobDescription?: string
+  hrInsights?: string[]
+}
+
+function createUserPrompt(context: EnhancementContext): string {
   const { sectionType, originalContent, customPrompt, jobDescription } = context
+  const isEmpty = !originalContent || !originalContent.trim()
+  const wordLimit = WORD_LIMITS[sectionType] || 150
+  const currentWordCount = countWords(originalContent || '')
+  const needsConciseRewrite = !isEmpty && currentWordCount > wordLimit
+  const sectionLabel = getSectionLabel(sectionType)
   
   let prompt = `Please enhance this ${sectionType} section:`
+  
+  // Add word count information for non-contact sections
+  if (wordLimit !== Infinity) {
+    prompt += `\n\nWord count target: Maximum ${wordLimit} words for ${sectionLabel} section${!isEmpty ? ` (current: ${currentWordCount} words)` : ''}`
+  }
   
   if (customPrompt) {
     prompt += `\n\nSpecific Request: ${customPrompt}`
@@ -137,14 +189,14 @@ function createUserPrompt(context: any): string {
     prompt += `\n\nTarget Job Description:\n${jobDescription}`
   }
   
-  if (!originalContent || !originalContent.trim()) {
+  if (isEmpty) {
     prompt += `\n\nCurrent Content: [Empty - please create content from scratch]
     
 Please provide:
 1. Professional content appropriate for this section
 2. Industry-standard formatting and language
 3. Realistic but compelling information (use placeholder data where needed)
-4. Content optimized for ATS (Applicant Tracking Systems)
+4. Content optimized for ATS (Applicant Tracking Systems)${wordLimit !== Infinity ? `\n5. Content that stays within ${wordLimit} words` : ''}
 
 Note: Since starting from scratch, create professional placeholder content that the user can customize with their specific details.`
   } else {
@@ -153,9 +205,21 @@ Note: Since starting from scratch, create professional placeholder content that 
 Please provide:
 1. Enhanced version of the content
 2. Key improvements made
-3. Additional suggestions for optimization
+3. Additional suggestions for optimization${wordLimit !== Infinity ? `\n4. Content that stays within ${wordLimit} words` : ''}
 
 Focus on making this section stand out while remaining truthful and professional.`
+  }
+  
+  // Add concise rewrite prompt if content exceeds word limit
+  if (needsConciseRewrite) {
+    prompt += `
+
+=== CONTENT TOO LONG — PLEASE CONCISELY REWRITE ===
+The enhanced content exceeds the maximum word count for this section. Please rewrite the content to stay within ${wordLimit} words while preserving:
+• Quantified impact
+• Action verbs and ATS keywords
+• Narrative consistency
+• Most compelling achievements and details`
   }
   
   prompt += `\n\n###

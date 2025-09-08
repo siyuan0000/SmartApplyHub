@@ -1,10 +1,11 @@
 'use client'
 
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useResumeEditor } from '@/hooks/useResumeEditor'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
-import { X } from 'lucide-react'
+import { X, Printer } from 'lucide-react'
+import { printPreviewToPDF, type PrintOptions } from '@/lib/isolated-print'
 import { PreviewHeader } from './preview/PreviewHeader'
 import { PreviewSummary } from './preview/PreviewSummary'
 import { PreviewExperience } from './preview/PreviewExperience'
@@ -23,6 +24,8 @@ interface ResumePreviewProps {
 
 export function ResumePreview({ resumeId, templateId, detectedLanguage, originalHeaders, onClose }: ResumePreviewProps) {
   const { content, loading, loadResume } = useResumeEditor()
+  const previewRef = useRef<HTMLDivElement>(null)
+  const [isPrinting, setIsPrinting] = useState(false)
 
   useEffect(() => {
     if (resumeId) {
@@ -116,20 +119,75 @@ export function ResumePreview({ resumeId, templateId, detectedLanguage, original
 
   const sectionOrder = getSectionOrder()
 
+  // Print handler using isolated print system
+  const handlePrint = async () => {
+    if (!previewRef.current || isPrinting) return
+    
+    setIsPrinting(true)
+    try {
+      // Get the actual preview dimensions
+      const previewRect = previewRef.current.getBoundingClientRect()
+      const previewWidth = previewRect.width
+      const previewHeight = previewRect.height
+      
+      // Calculate scale to fit preview content to page
+      const pageWidthPx = previewWidth
+      const pageHeightPx = previewHeight
+      
+      // Convert pixels to inches (96 DPI standard)
+      const pageWidthIn = pageWidthPx / 96
+      const pageHeightIn = pageHeightPx / 96
+      
+      // Determine page size based on aspect ratio
+      const aspectRatio = pageWidthIn / pageHeightIn
+      let pageSize: 'A4' | 'Letter' = 'Letter'
+      
+      // A4 aspect ratio ≈ 0.707, Letter aspect ratio ≈ 0.773
+      if (aspectRatio < 0.74) {
+        pageSize = 'A4'
+      }
+      
+      const printOptions: PrintOptions = {
+        pageSize,
+        margin: { top: 0.5, right: 0.5, bottom: 0.5, left: 0.5 },
+        scale: 1,
+        filename: `${content?.contact?.name || 'resume'}.pdf`
+      }
+      
+      await printPreviewToPDF(previewRef.current, printOptions)
+    } catch (error) {
+      console.error('Print failed:', error)
+      // You could add toast notification here
+    } finally {
+      setIsPrinting(false)
+    }
+  }
+
   return (
     <div className={`resume-preview bg-white resume-template-${templateContext.template.id} relative`}>
-      {/* Close button */}
-      {onClose && (
+      {/* Action buttons */}
+      <div className="absolute top-2 right-2 z-10 flex gap-2 no-print">
         <Button
           variant="ghost"
           size="sm"
-          className="absolute top-2 right-2 z-10 h-6 w-6 p-0 hover:bg-gray-100 no-print"
-          onClick={onClose}
+          className="h-8 w-8 p-0 hover:bg-gray-100"
+          onClick={handlePrint}
+          disabled={isPrinting}
         >
-          <X className="h-3 w-3" />
+          <Printer className="h-4 w-4" />
         </Button>
-      )}
-      <div className="w-full">
+        {onClose && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 w-8 p-0 hover:bg-gray-100"
+            onClick={onClose}
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        )}
+      </div>
+      <div className="w-full" ref={previewRef}>
         {/* Print-friendly container */}
         <div className="resume-content bg-white shadow-sm min-h-full p-6 print:p-6 print:shadow-none print:min-h-0 text-sm">
           {sectionOrder.map(renderSection).filter(Boolean)}
